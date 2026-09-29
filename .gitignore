@@ -1,0 +1,23 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Java / Maven / Gradle
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+.gradle/
+
+# Env & secrets
+.env
+.env.*
+*.pem
+credentials.json
+
+# OS
+.DS_Store
+Thumbs.db
