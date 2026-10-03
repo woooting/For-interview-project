@@ -1,6 +1,6 @@
 # Velrix 工作台 · Spring Boot + React 重写需求文档（后端练习版）
 
-> 来源：从 `prroject/VelrixWorkHub`（.NET + Blazor + FreeSql + PostgreSQL 的模块化企业工作台）中提炼。
+> 来源：从 `[prroject/VelrixWorkHub](D:\gitProject\VelrixWorkHub)`（.NET + Blazor + FreeSql + PostgreSQL 的模块化企业工作台）中提炼。
 > 目的：不是 1:1 复刻，而是挑出**后端含金量最高**的业务，让你用 Spring Boot 手写一遍，把 CRUD 之外的状态机、事务、并发、幂等、账本、流程引擎、异步投递这些真功夫练扎实。
 > 配套：模块顺序和 `plan.md` 的学习阶段（MySQL → Redis → MQ → ES → Docker/Nginx）一一对应，每个阶段都有可落地的业务场景来练。
 

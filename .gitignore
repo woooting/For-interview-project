@@ -1,23 +1,36 @@
-# IDE
-.idea/
-*.iml
-.vscode/
-
-# Java / Maven / Gradle
+HELP.md
 target/
+
+# 本地数据库账号密码
+**/application-local.properties
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
 build/
-out/
-*.class
-*.jar
-*.war
-.gradle/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
-# Env & secrets
-.env
-.env.*
-*.pem
-credentials.json
-
-# OS
-.DS_Store
-Thumbs.db
+### VS Code ###
+.vscode/
