@@ -1,10 +1,10 @@
-package com.example.aaa;
+package com.velrix;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class AaaApplicationTests {
+class VelrixApplicationTests {
 
 	@Test
 	void contextLoads() {
