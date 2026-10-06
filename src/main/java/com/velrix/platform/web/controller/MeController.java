@@ -1,6 +1,8 @@
 package com.velrix.platform.web.controller;
 
 import com.velrix.platform.application.AuthService;
+import com.velrix.platform.application.MenuAccessService;
+import com.velrix.platform.application.UserAccess;
 import com.velrix.platform.domain.AuthUser;
 import com.velrix.platform.domain.SysUser;
 import com.velrix.platform.web.dto.MeResponse;
@@ -18,12 +20,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class MeController {
 
     private final AuthService authService;
+    private final MenuAccessService menuAccessService;
 
     @GetMapping("/me")
     public ApiResponse<MeResponse> me() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
         AuthUser authUser = (AuthUser) authentication.getPrincipal();
         SysUser user = authService.getById(authUser.id());
-        return ApiResponse.ok(new MeResponse(user.getId(), user.getUsername(), user.getDisplayName()));
+        UserAccess access = menuAccessService.loadAccess(authUser.id());
+        return ApiResponse.ok(new MeResponse(user.getId(), user.getUsername(), user.getDisplayName(),access.menus(), access.permCodes()));
     }
 }

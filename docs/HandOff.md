@@ -1,49 +1,53 @@
 # HandOff — AAA / Velrix M0 平台底座
 
-> 供下一会话接手的摘要。详细需求见引用文档，此处不重复全文。  
-> 更新：2026-10-04（`web` 拆成 controller / dto，7d 代码已写、端到端未验）
+> 下一会话接着做。需求全文不抄，看下面的引用。  
+> 更新：2026-10-05。工作区改动还没提交。
+
+主模式是带着开发者写：先讲数据流，再给填空，不要一次把类写完。技能文件：`~/.cursor/skills/learning-mentor/SKILL.md`。
 
 ---
 
 ## 项目是什么
 
 - **路径**：`D:\gitProject\AAA`
-- **栈**：Spring Boot **4.1.1**、Java **17**、Maven、MySQL 8、Flyway、MyBatis-Plus 3.5.17、Spring Security、JJWT 0.12.6、**Lombok（后加，在用 @Data/@RequiredArgsConstructor）**
-- **目标**：M0 平台底座（JWT、RBAC、菜单/`perm_code`）；课表见 `docs/Velrix-SpringBoot重写需求文档.md`，产品范围见 `docs/M0-平台底座需求.md`
-- **未引入**：Redis、Validation 实际使用、MapStruct；Redis 属 M0 v0.2
+- **栈**：Spring Boot **4.1.1**、Java **17**、Maven、MySQL 8、Flyway、MyBatis-Plus 3.5.17、Spring Security、JJWT 0.12.6、Lombok（`@Data` / `@RequiredArgsConstructor` / `@Getter`）
+- **目标**：M0 平台底座。课表 `docs/Velrix-SpringBoot重写需求文档.md`，范围 `docs/M0-平台底座需求.md`
+- **未引入**：Redis、Validation 的实际使用、MapStruct。Redis 属 M0 v0.2（登录锁定、refresh、权限缓存）
 
 ---
 
 ## 当前进度
 
-### 已完成：登录闭环（第 1～6 步 + 7a～7c）
+登录、`GET /api/me`（用户 + 菜单树 + 权限码）、`@RequirePerm` 拦截都已经能用。
 
-| 文件 | 位置 | 职责 |
-|------|------|------|
-| `ApiResponse` / `ApiCodes` | `shared/api` | 统一响应壳（record）；code：OK / BIZ_ERROR / BIZ_LOGIN_FAILED / UNAUTHORIZED |
-| `BizException` | `shared/exception` | code + message，继承 RuntimeException |
-| `GlobalExceptionHandler` | `shared/web` | BizException → HTTP 422 + `ApiResponse.fail` |
-| `SysUser` | `platform/domain` | `sys_user` 实体（Lombok @Data，MyBatis-Plus @TableName/@TableId） |
-| `AuthUser` | `platform/domain` | record(id, username)，JWT 解析后的认证主体 |
-| `AuthService` | `platform/application` | `login()`：规范化用户名→查库→BCrypt→签发 JWT；`getById()`：按 id 查用户 |
-| `SysUserMapper` | `platform/infrastructure/persistence` | `@Mapper extends BaseMapper<SysUser>` |
-| `SecurityConfig` | `platform/infrastructure/security` | PasswordEncoder Bean；FilterChain：STATELESS、login 白名单、其余需认证、JwtAuthFilter、401 统一 JSON |
-| `JwtService` | `platform/infrastructure/security` | `issue(SysUser)` / `parse(token)`，HMAC-SHA256 |
-| `JwtAuthFilter` | `platform/infrastructure/security` | `OncePerRequestFilter`：Bearer token → Claims → AuthUser → SecurityContext（不拒绝，只识别） |
-| `AuthController` | `platform/web/controller` | `POST /api/auth/login` 已 curl 验证通过（OK + token；错密码 422 + BIZ_LOGIN_FAILED） |
-| `LoginRequest` / `LoginResponse` / `MeResponse` | `platform/web/dto` | HTTP 边界 record。`MeResponse`：id / username / displayName |
-| `MeController` | `platform/web/controller` | `GET /api/me`：SecurityContext 取 AuthUser → `authService.getById` → `MeResponse`。代码已写，端到端未验 |
+| 能力 | 落点 |
+|------|------|
+| 统一响应 / 业务码 | `shared/api` 的 `ApiResponse`、`ApiCodes`（`OK` / `BIZ_ERROR` / `BIZ_LOGIN_FAILED` / `UNAUTHORIZED` / `FORBIDDEN`） |
+| 422 | `BizException` → `GlobalExceptionHandler` |
+| 403 | `ForbiddenException` **不继承** `BizException`，单独处理方法，HTTP 403 + `code=FORBIDDEN` |
+| 401 | `SecurityConfig` 的 `authenticationEntryPoint`，JSON `UNAUTHORIZED` |
+| 登录 | `AuthService.login`：`trim` + `toLowerCase(Locale.ROOT)` 查 `username_norm`，BCrypt，失败一律 `BIZ_LOGIN_FAILED` |
+| JWT | `JwtService`：subject=userId，claim `username`，30 分钟。配置键 `velrix.jwt.secret`、`velrix.jwt.access-token-minutes` |
+| 过滤器 | `JwtAuthFilter` 只识别 token，无效则不设置认证；拒绝交给 `.anyRequest().authenticated()` |
+| 菜单 | `MenuAccessService`：`listGrantedMenus` → `listVisibleMenus`（按 `parentId` 补祖先）→ `loadAccess`（`MENU` 拼树，`BUTTON` 的 `permCode` 进列表）→ `hasPerm` |
+| 树的类型 | `MenuNode`、`UserAccess` 在 `application`。HTTP 外形 `MeResponse` 在 `web/dto`，可以引用 `MenuNode` |
+| 权限注解 | `shared/web/RequirePerm`（`@Target(METHOD)`，`RUNTIME`，属性名 `value`） |
+| 拦截器 | `platform/web/RequirePermInterceptor`，由 `WebMvcConfig.addInterceptors` 注册。无注解放行；无权限抛 `ForbiddenException` |
+| 试权限的接口 | `POST /api/purchase-orders/submit`，注解 `purchase-order:submit`。还不是采购业务 |
 
-### 测试：16 个全绿（`.\mvnw.cmd test`）
+布尔列不要用 `is` 前缀：`SysRole.administrator` 配 `@TableField("is_administrator")`，`SysMenu.hidden` 配 `@TableField("is_hidden")`。关联表没有实体，角色 id / 菜单 id 用 Mapper 上的 `@Select` 查。
 
-`AuthServiceTest`(5)、`SysUserMapperTest`(2)、`JwtServiceTest`(2)、`JwtAuthFilterTest`(3)、`ApiResponseTest`(2)、`GlobalExceptionHandlerTest`(1)、`VelrixApplicationTests`(1)
+### 已验证
 
-### 待做：第 7d 及之后
+- `MenuAccessServiceTest`（3）：管理员全树、李四只有采购、王五只授权子菜单 `2101` 时树里仍有父菜单 `2100`
+- `PurchaseOrderControllerTest`（3）：管理员与李四提交 200；王五 403，`message` 为「没有权限」
+- 更早的登录 / JWT / Mapper 测试未在本轮全量重跑。`AuthServiceTest` 会改李四的 `enabled` 再改回，重跑全量前先问用户
 
-1. **端到端验证**（7d 代码已写，这一步未做）：打包 → `java -jar target/aaa-0.0.1-SNAPSHOT.jar --server.port=18080` 后台启动 → sleep 检查端口 → curl 三场景（无 token 401 / 真 token 200 / 伪造 401）→ 杀进程。**分多条命令，勿串长命令干等（用户明确要求）**
-2. **M0 RBAC**：`SysRole`/`SysMenu` 实体 + Mapper；`/api/me` 扩展菜单树（祖先补齐 R0-3）+ 权限码；`@RequirePerm` 注解 + 拦截器（R0-4，403 统一响应）
-3. **`PUT /api/roles/{id}/menus`** 覆盖式授权 + `sys_audit_log`（AC-M0-08）
-4. 用户/角色/菜单 CRUD；v0.2 Redis（权限缓存、refresh token、登录锁定）
+### 下一步
+
+1. `PUT /api/roles/{id}/menus`：覆盖式授权，并写 `sys_audit_log`（课表 R0-5，需求 AC-M0-08）。表已在 Flyway V6，代码还没有
+2. HTTP 端到端还没做：打包后单独起进程，再分开 curl（无 token 401、登录后 `/api/me`、伪造 token 401、王五调 submit 403）。不要把打包、启动、轮询串成一条长命令
+3. 之后才是用户/角色/菜单 CRUD，以及 v0.2 的 Redis
 
 ---
 
@@ -51,84 +55,68 @@
 
 ```
 com.velrix
-├── shared/                    # 全项目技术公共设施（HandOff 拍板，文档 §3.2 未画）
-│   ├── api/  exception/  web/
-└── platform/                  # M0 模块（文档 §3.2：用户/角色/菜单/审计都归此模块）
-    ├── domain/                # 实体 + 领域概念；不依赖任何层
-    ├── application/           # 用例/事务（AuthService …）
+├── shared/                 # 技术公共设施，不依赖 platform
+│   ├── api/  exception/  web/     # RequirePerm、GlobalExceptionHandler 在 web
+└── platform/
+    ├── domain/             # 实体 + AuthUser。不依赖别的层
+    ├── application/        # AuthService、MenuAccessService、MenuNode、UserAccess
     ├── infrastructure/
-    │   ├── persistence/       # Mapper
-    │   └── security/          # SecurityConfig、JwtService、JwtAuthFilter
+    │   ├── persistence/
+    │   └── security/       # SecurityConfig、JwtService、JwtAuthFilter
     └── web/
-        ├── controller/        # AuthController、MeController
-        └── dto/               # HTTP 边界 record：LoginRequest、LoginResponse、MeResponse
+        ├── controller/     # Auth、Me、PurchaseOrder
+        ├── dto/
+        ├── RequirePermInterceptor.java
+        └── WebMvcConfig.java
 ```
 
-- 依赖方向：`web → application → infrastructure`；`domain` 谁都不依赖。Controller 不许直接调 Mapper
-- DTO 归属：只在 HTTP 边界用的 record 放 `web/dto`（请求和响应放一起）；领域值对象（AuthUser）放 `domain`；全项目通用（ApiResponse）放 `shared`
-- 拆包时机：包里混了不同职责、读起来乱时再拆。已拆过两次：infrastructure → persistence/security；web → controller/dto
+依赖方向：`web → application → infrastructure`。Controller 不调 Mapper。拦截器要调 `MenuAccessService`，所以放 `platform/web`，不放 `shared`，也不放 `infrastructure`。
 
 ---
 
-## 关键实现决策
+## 实现约定
 
-- 登录：`usernameNorm = trim + toLowerCase(Locale.ROOT)` 查 `username_norm`；BCrypt `matches`
-- 失败统一 `BIZ_LOGIN_FAILED` + "用户名或密码错误"（不泄露账号是否存在；停用同此）
-- 业务错误 HTTP 422；未认证 401 + `{"code":"UNAUTHORIZED",...}`（EntryPoint 用 ObjectMapper 序列化）
-- JWT：subject=userId，claim username，30 分钟；密钥配置 `velrix.jwt.secret`（≥32 字节）/`velrix.jwt.access-token-minutes`
-- Security 链：STATELESS + `.requestMatchers("/api/auth/login").permitAll()` + `.anyRequest().authenticated()` + `addFilterBefore(JwtAuthFilter, UsernamePasswordAuthenticationFilter)`
-- 过滤器策略：token 无效**不抛不拒**，只不设置认证；拒绝交给授权规则
-
----
-
-## 踩过的坑（重要）
-
-- **Spring Boot 4 用 Jackson 3**：`ObjectMapper` 在 `tools.jackson.databind`（`com.fasterxml.jackson.databind` 不在 classpath）；注解包 `com.fasterxml.jackson.annotation` 不变。网上老教程全是 Jackson 2 写法，注意
-- `SecurityConfig` 的 FilterChain 方法漏 `@Bean` → 配置不生效（已修）
-- Lombok 是开发者自己加进 pom 的；@Data/@RequiredArgsConstructor 已在使用
-- 脚手架注释（"填空1/2…"）残留是常态，每次检查时顺手清理
-- Windows 终端显示中文乱码（GBK）属正常，Maven 输出/HTTP 响应 body 实际为 UTF-8
+- 登录失败、停用账号：同一句「用户名或密码错误」，不暴露账号是否存在
+- 过滤器不抛异常。没登录进不了控制器；`/api/me` 和拦截器里不再为 `authentication == null` 写防空
+- 管理员不写 `sys_role_menu`。`listGrantedMenus` 看到 `administrator == true` 就 `selectList(null)`，所以 `hasPerm` 不用再判一次管理员
+- 祖先补齐只往列表里加缺的父行，不改 `path`，也不在这一步排序或做树。树在 `loadAccess` 里按 `sort` 挂 `children`，`BUTTON` 不进树
+- `CurrentAuthUser` 还没抽。拦截器和 `MeController` 仍直接读 `SecurityContextHolder`
 
 ---
 
-## 运行与验证
+## 踩过的坑
 
-- 全量测试：`.\mvnw.cmd test`；单类：`.\mvnw.cmd test -Dtest=AuthServiceTest`
-- IDEA：Run `com.velrix.VelrixApplication`；CLI：`.\mvnw.cmd spring-boot:run`
-- 登录 curl 示例（端口自定）：
-
-```powershell
-Invoke-RestMethod -Uri "http://localhost:18080/api/auth/login" -Method Post `
-  -ContentType "application/json" -Body '{"username":"admin","password":"admin123"}'
-```
+- Spring Boot 4 的 `ObjectMapper` 在 `tools.jackson.databind`。注解仍是 `com.fasterxml.jackson.annotation`
+- 只有 `flyway-core` 时启动不会迁移。已用 `spring-boot-starter-flyway`，并保留 `flyway-mysql`
+- `SecurityConfig` 的过滤链方法必须有 `@Bean`
+- 已执行过的 Flyway 脚本不要改。新数据用下一个版本号。V8 已在本机库执行到 version 8
+- Windows 终端中文是 GBK 乱码；Maven / HTTP body 实际是 UTF-8
+- `pom.xml` 的 `java.version` 是 17。不要再加 `--enable-preview` 配源码 21，和 17 冲突，编译会失败
 
 ---
 
-## 种子与表（Flyway V1–V7 已全部落库）
+## 运行
 
-| 账号 | 密码 | 角色 |
-|------|------|------|
-| `admin` | `admin123` | 系统管理员（`is_administrator=1`，不写 `sys_role_menu`） |
-| `lisi` | `admin123` | 采购员（菜单 2100/2101/2102，含 `purchase-order:submit`） |
+- 单类：`.\mvnw.cmd test -Dtest=PurchaseOrderControllerTest`
+- 全量：`.\mvnw.cmd test`（会写库，先问用户）
+- 启动：IDEA 跑 `com.velrix.VelrixApplication`，或 `.\mvnw.cmd spring-boot:run`
+- 演示账号和授权写在 `src/main/resources/db/migration/V7__seed_m0_platform.sql`、`V8__seed_child_menu_only.sql`。交接文档不记密码
 
-固定 id：角色 1/2，用户 1001/1002，菜单 2000～2102。`sys_org` 未做（D7 可选）。V7 重复执行会主键冲突，仅 Flyway 首次 migrate 安全。
+固定 id：角色 1/2/3，用户 1001 `admin`、1002 `lisi`、1003 `wangwu`，菜单 2000～2102。`sys_org` 还没做。
 
 ---
 
-## 开发者特点（新手，重要）
+## 开发者
 
-- 第一次写 Java：先讲概念/数据流，再给骨架填空；一次别抛太多新 API
-- **不写测试**：检查 + 补测试 + 跑验证由接手方做（改代码后必须编译 + 跑相关测试）
-- 会主动对照文档质疑架构（做过两次有价值的纠偏）：一切以 `docs/Velrix-SpringBoot重写需求文档.md` 为准，发现自己的建议与文档冲突就承认并改正
-- 终端体验敏感：长命令（打包+启动+轮询）会干等，要拆段执行
+第一次写 Java。会拿文档纠正分层，以课表为准。终端里长命令会干等，要拆开跑。数据库的增删改必须先得到用户同意。
 
 ---
 
 ## 参考
 
-- `docs/Velrix-SpringBoot重写需求文档.md`（§3.2 分层、§3.4 接口、M0 章为验收基准）
+- `docs/Velrix-SpringBoot重写需求文档.md`（§3.2 分层、§3.4 接口、M0 章）
 - `docs/M0-平台底座需求.md`
-- 原项目：`D:\gitProject\VelrixWorkHub`（C#/Blazor/FreeSql，**仅业务规则参考，勿抄代码/形状**）
+- 原项目 `D:\gitProject\VelrixWorkHub`：只参考业务规则，不抄代码和形状
 
 ---
 
@@ -136,7 +124,7 @@ Invoke-RestMethod -Uri "http://localhost:18080/api/auth/login" -Method Post `
 
 | Skill | 何时用 |
 |-------|--------|
-| `learning-mentor` | 引导开发者写下一步（当前主模式） |
-| `clean-code` | 分包/重构审查 |
-| `tdd` | RBAC 验收用例 |
+| `learning-mentor` | 引导写下一步（当前主模式） |
+| `clean-code` | 分包、命名 |
+| `tdd` | 接手方补验收测试 |
 | `handoff` | 再交接时覆盖本文 |

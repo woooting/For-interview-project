@@ -21,4 +21,5 @@ public final class ApiCodes {
 
 	/** 未认证：未登录、token 无效或已过期（HTTP 401） */
 	public static final String UNAUTHORIZED = "UNAUTHORIZED";
+	public static final String FORBIDDEN = "FORBIDDEN";
 }

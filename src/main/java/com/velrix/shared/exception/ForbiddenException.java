@@ -2,14 +2,13 @@ package com.velrix.shared.exception;
 
 import lombok.Getter;
 
-@Getter
-public class BizException extends RuntimeException {
 
+@Getter
+public class ForbiddenException extends RuntimeException {
     private final String code;
 
-    public BizException(String code, String message) {
+    public ForbiddenException(String code, String message) {
         super(message);
         this.code = code;
     }
-
 }
