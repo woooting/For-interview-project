@@ -1,7 +1,6 @@
 package com.velrix.platform.infrastructure.security;
 
-import com.velrix.platform.domain.AuthUser;
-import com.velrix.platform.domain.SysUser;
+import com.velrix.platform.domain.user.SysUser;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

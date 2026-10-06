@@ -1,6 +1,5 @@
 package com.velrix.platform.infrastructure.security;
 
-import com.velrix.platform.domain.AuthUser;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;

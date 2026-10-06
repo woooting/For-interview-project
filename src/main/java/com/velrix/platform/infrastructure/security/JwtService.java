@@ -1,6 +1,6 @@
 package com.velrix.platform.infrastructure.security;
 
-import com.velrix.platform.domain.SysUser;
+import com.velrix.platform.domain.user.SysUser;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
