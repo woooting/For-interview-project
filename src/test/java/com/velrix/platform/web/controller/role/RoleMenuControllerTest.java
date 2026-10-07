@@ -3,8 +3,8 @@ package com.velrix.platform.web.controller.role;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.velrix.platform.application.auth.AuthService;
 import com.velrix.platform.application.access.MenuAccessService;
-import com.velrix.platform.application.access.result.MenuNode;
-import com.velrix.platform.application.access.result.UserAccess;
+import com.velrix.platform.application.access.dto.MenuNodeResponse;
+import com.velrix.platform.application.access.dto.UserAccessResponse;
 import com.velrix.platform.domain.audit.SysAuditLog;
 import com.velrix.platform.infrastructure.persistence.audit.SysAuditLogMapper;
 import com.velrix.shared.api.ApiCodes;
@@ -56,12 +56,12 @@ class RoleMenuControllerTest {
 				.andExpect(jsonPath("$.data.removed", hasItem(2100)))
 				.andExpect(jsonPath("$.data.removed", hasItem(2102)));
 
-		UserAccess access = menuAccessService.loadAccess(1002L);
+		UserAccessResponse access = menuAccessService.loadAccess(1002L);
 		assertTrue(access.permCodes().isEmpty());
 		assertEquals(1, access.menus().size());
-		MenuNode purchase = access.menus().get(0);
+		MenuNodeResponse purchase = access.menus().get(0);
 		assertEquals(2100L, purchase.id());
-		assertEquals(List.of(2101L), purchase.children().stream().map(MenuNode::id).toList());
+		assertEquals(List.of(2101L), purchase.children().stream().map(MenuNodeResponse::id).toList());
 
 		List<SysAuditLog> logs = sysAuditLogMapper.selectList(new LambdaQueryWrapper<SysAuditLog>()
 				.eq(SysAuditLog::getAction, "ROLE_MENU_UPDATE")

@@ -1,7 +1,7 @@
 # HandOff — AAA / Velrix M0 平台底座
 
-> 下一会话做菜单树维护（M0-F-30～32）。用户的创建、编辑、分配角色（M0-F-10/11/12）已完成。不要重做登录、角色、用户，也不要再改已定的包结构，除非开发者明确要求。  
-> 更新：2026-10-06。工作区改动还没提交。需求全文不抄，看下面的引用。
+> 菜单树维护（M0-F-30～32）已完成，不要重做。登录、菜单可见性、角色授权、角色 CRUD、用户创建/编辑/分配角色也不要重做。包名是 `dto`，不要改回 `result`。下一会话若继续，先跟开发者确认，再做 P1 用户列表（M0-F-13）。  
+> 更新：2026-10-07。`master` 与 `origin/master` 对齐，改动都还在工作区，未提交。需求全文不抄，看下面的引用。
 
 主模式是带着开发者写：先讲数据流，再给填空，不要一次把类写完。开发者说「你来」时，只写卡住的那一段并解释。技能文件：`~/.cursor/skills/learning-mentor/SKILL.md`。
 
@@ -14,50 +14,46 @@
 - **目标**：M0 平台底座。课表 `docs/Velrix-SpringBoot重写需求文档.md` §3.2，范围 `docs/M0-平台底座需求.md`
 - **未引入**：Redis、Validation 的实际使用、MapStruct。Redis 属 M0 v0.2
 
+M0 v0.1 的 P0 共 20 项，都已落地。不在这个范围内的有：登出、用户列表（M0-F-13）、审计查询，这些是 P1；组织树可选；Redis 与全量审计属后续迭代。
+
 ---
 
 ## 当前进度
-
-登录、`GET /api/me`、`@RequirePerm`、`PUT /api/roles/{id}/menus` 已可用。包已按业务拆完。
-
-角色 CRUD（M0-F-20）已完成。`RoleService` 的 `create`、`update`、`list` 在 `application/role/RoleService`：名称去空格后必填且唯一（编辑用 `ne` 排除自己），描述可空，管理员标记用 `Boolean.TRUE.equals`，列表按 `seq` 升序。`web/controller/role/RoleController` 与 `SaveRoleRequest` 提供 `POST` / `PUT /{id}` / `GET /api/roles`。V10 已执行：菜单 `2005`～`2007` 为 `role:create`、`role:update`、`role:list`，不写 `sys_role_menu`。
 
 | 能力 | 落点 |
 |------|------|
 | 统一响应 / 业务码 | `shared/api` 的 `ApiResponse`、`ApiCodes` |
 | 422 / 403 / 401 | `BizException` → 422；`ForbiddenException`（不继承 `BizException`）→ 403；`SecurityConfig` 入口 → 401 |
 | 登录 / JWT | `application/auth/AuthService`；`infrastructure/security` 的 `JwtService`、`JwtAuthFilter` |
-| 菜单与权限判断 | `application/access/MenuAccessService`；返回值在 `access/result`（`MenuNode`、`UserAccess`） |
-| 角色授权 | `application/role/RoleMenuService`；差值在 `role/result/RoleMenuDiff` |
-| 角色创建 / 编辑 / 列表 | `application/role/RoleService`；`web/controller/role/RoleController` |
-| 用户创建 / 编辑 / 分配角色 | `application/user/UserService`；`web/controller/user/UserController`。返回 `UserResponse`，不含密码哈希。`sys_user_role` 无实体，SQL 在 `SysRoleMapper`（`insertUserRole`，不要叫 `insert`） |
-| 授权接口 | `PUT /api/roles/{id}/menus`，`web/controller/role/RoleMenuController`，`@RequirePerm("role:grant-menus")` |
-| 权限注解 | `shared/web/RequirePerm` |
-| 拦截器 | `web/config/RequirePermInterceptor`，由同包 `WebMvcConfig` 注册 |
-| 试权限接口 | `POST /api/purchase-orders/submit`，`web/controller/purchase`。还不是采购业务 |
+| 当前用户 | `GET /api/me`，`web/controller/me` |
+| 菜单与权限判断 | `application/access/MenuAccessService`；返回值在 `access/dto`（`MenuNodeResponse`、`UserAccessResponse`） |
+| 角色授权 | `PUT /api/roles/{id}/menus`，`application/role/RoleMenuService`；差值在 `role/dto/RoleMenuDiffResponse`。`@RequirePerm("role:grant-menus")` |
+| 角色创建 / 编辑 / 列表 | `application/role/RoleService`；`POST` / `PUT /{id}` / `GET /api/roles` |
+| 用户创建 / 编辑 / 分配角色 | `application/user/UserService`；`POST /api/users`、`PUT /api/users/{id}`、`PUT /api/users/{id}/roles` |
+| 菜单树维护 | `application/menu/MenuService`；`web/controller/menu/MenuController` 的 `POST/PUT/GET/DELETE /api/menus` |
+| 权限注解与拦截 | `shared/web/RequirePerm`；`web/config/RequirePermInterceptor`，由同包 `WebMvcConfig` 注册 |
+| 试权限接口 | `POST /api/purchase-orders/submit`。还不是采购业务 |
 
-`hasPerm` 只认菜单表里真实存在的按钮权限码。管理员不写 `sys_role_menu`。`sys_role_menu` 无实体，SQL 在 `infrastructure/persistence/menu/SysMenuMapper`（`insertRoleMenu`，不要叫 `insert`）。审计实体 `domain/audit/SysAuditLog`，`id` 与 `occurredAt` 插入时留空。
+菜单维护的规则在 `MenuService.prepare`：创建传 `id = null`，编辑传正在改的 id。页面不写权限码，谁能进页面看角色有没有勾上这条菜单 id。按钮必须有唯一权限码，编辑查重用 `.ne` 排除自己。父级为空表示根，有值则父级必须存在且是页面。不能把自己或自己的子孙设为父级。下面还有子节点时不能改成按钮，也不能删除。删除先清 `sys_role_menu` 里该菜单的行，再 `deleteById`。`updateById` 会跳过 null，所以更新用 `LambdaUpdateWrapper.set`。`listTree` 是管理端整棵树，含按钮和隐藏项；`/api/me` 的侧栏树只留 `MENU`，不要混用。请求体是 `menu/dto/SaveMenuRequest`，服务直接收这个对象。管理树是 `menu/dto/MenuTreeResponse`。
+
+`hasPerm` 只认菜单表里真实存在的按钮权限码。管理员不写 `sys_role_menu`。`sys_role_menu` 无实体，SQL 在 `SysMenuMapper`（`insertRoleMenu`、`deleteByRoleId`、`deleteByMenuId`，不要叫 `insert` / `delete`）。`sys_user_role` 无实体，SQL 在 `SysRoleMapper`。审计实体 `domain/audit/SysAuditLog`，`id` 与 `occurredAt` 插入时留空。用户分配角色、菜单增删改这一步不写审计。
 
 ### 已验证
 
-- `MenuAccessServiceTest`、`PurchaseOrderControllerTest`、`RoleMenuControllerTest` 在分包后仍通过。授权测试带 `@Transactional`，跑完回滚
-- 库：Flyway 版本 11。菜单 `2004` 为「保存授权」；`2005`～`2007` 为角色新建/编辑/列表；`2008`～`2010` 为用户新建/编辑/分配角色。采购员仍是角色 2，菜单 `2100/2101/2102`。测试插入的「验收角色甲」「验收用户甲」已回滚
-- 真实进程（8080）已核对 401 / `/api/me` / 伪造 token / 王五提交 403，以及管理员把采购员改成只留 `2101` 后再改回。细节不重复记
-- `AuthServiceTest` 会改李四的 `enabled` 再改回。全量 `.\mvnw.cmd test` 前先问用户
-- `.\mvnw.cmd test -Dtest=RoleControllerTest`：3 个用例通过。写库的用例带 `@Transactional`，跑完回滚
-- `.\mvnw.cmd test -Dtest=UserControllerTest`：3 个用例通过。写库的用例带 `@Transactional`，跑完回滚。李四仍只绑角色 2
+- 库：Flyway 版本 **12**。菜单 `2011`～`2014` 挂在 `2003`（菜单管理）下，权限码 `menu:list`、`menu:create`、`menu:update`、`menu:delete`。不写 `sys_role_menu`
+- `.\mvnw.cmd test -Dtest=MenuControllerTest`：3 个通过。写库用例带 `@Transactional`，跑完回滚
+- 真实进程（8080）：管理员的菜单树里有这四个按钮；李四 `GET /api/menus` 为 403
+- 角色、用户接口测试此前已通过。全量 `.\mvnw.cmd test` 前先问用户。`AuthServiceTest` 会改李四的 `enabled` 再改回
 
 ### 下一步
 
-菜单树维护（M0-F-30～32）：父级、名称、前端路由、排序、是否隐藏；类型为页面或按钮；按钮携带权限码。一次只引导一步。会写库的脚本和测试先得到用户同意。
-
-用户列表（M0-F-13）是 P1，这一步不做。用户/角色/菜单变更的全量审计、`GET /api/audit-logs`、Redis 都不是这一步。
+先跟开发者确认，再做 P1 用户列表（M0-F-13）。登出、`GET /api/audit-logs`、Redis、组织树都不是默认的下一步。新 Flyway 从 **V13** 起。会写库的脚本和测试先得到同意，脚本可写，执行由开发者自己做。
 
 ---
 
 ## 包结构
 
-课表 §3.2：先分层，再在层内按业务分子包。`record` 不是包名；用例返回值放该业务下的 `result`。Controller 必须在 `web/controller` 下，再按业务细分。开发者已纠正过「控制器直接放在 `web/auth` 这种业务包」的做法。
+课表 §3.2：先分层，再在层内按业务分子包。`record` 不是包名。传递数据的 record 放该业务下的 `dto`，类名以 `Request` 或 `Response` 结尾。只给本控制器用的请求体和响应仍放 `web/controller/{业务}`。服务要读的请求体放 `application/{业务}/dto`，避免服务反向依赖 web。Controller 必须在 `web/controller` 下，再按业务细分。
 
 ```
 com.velrix
@@ -68,9 +64,11 @@ com.velrix
     ├── application/
     │   ├── auth/                # AuthService
     │   ├── access/              # MenuAccessService
-    │   │   └── result/          # MenuNode、UserAccess
+    │   │   └── dto/             # MenuNodeResponse、UserAccessResponse
     │   ├── role/                # RoleMenuService、RoleService
-    │   │   └── result/          # RoleMenuDiff
+    │   │   └── dto/             # RoleMenuDiffResponse
+    │   ├── menu/                # MenuService
+    │   │   └── dto/             # SaveMenuRequest、MenuTreeResponse
     │   └── user/                # UserService
     ├── infrastructure/
     │   ├── persistence/         # user、role、menu、audit 的 Mapper
@@ -78,10 +76,10 @@ com.velrix
     └── web/
         ├── config/              # WebMvcConfig、RequirePermInterceptor
         └── controller/
-            ├── auth/  me/  role/  user/  purchase/
+            ├── auth/  me/  role/  user/  menu/  purchase/
 ```
 
-依赖方向：`web → application → infrastructure`。Controller 不调 Mapper。拦截器调用 `MenuAccessService`，所以和 `WebMvcConfig` 一起放 `web.config`，不放 `infrastructure`，也不放 `shared`。请求体 record 与对应 Controller 放同一个 `controller/{业务}` 包，不再单开 `dto`。测试目录跟着主代码走。
+依赖方向：`web → application → infrastructure`。Controller 不调 Mapper。拦截器调用 `MenuAccessService`，所以和 `WebMvcConfig` 一起放 `web.config`。测试目录跟着主代码走。
 
 ---
 
@@ -89,13 +87,14 @@ com.velrix
 
 - 登录失败、停用账号：同一句「用户名或密码错误」
 - 过滤器不抛异常。没登录进不了控制器
-- 管理员不写 `sys_role_menu`。祖先补齐只加父行，树在 `loadAccess` 里挂 `children`，`BUTTON` 不进树
-- 覆盖授权：先算增减，再删旧插新。`menuIds` 为 null 或空表示收回全部菜单。审计与替换同一事务
+- 管理员不写 `sys_role_menu`。祖先补齐只加父行，侧栏树在 `loadAccess` 里挂 `children`，`BUTTON` 不进这棵树
+- 角色菜单授权：先算增减（给审计），落库仍先删后插。`menuIds` 为 null 或空表示收回全部菜单。审计与替换同一事务
 - 布尔列不要用 `is` 前缀：`administrator` → `is_administrator`，`hidden` → `is_hidden`
 - `AuthUser` 在 `infrastructure.security`，不是表实体。拦截器和控制器仍直接读 `SecurityContextHolder`。IP 用 `getRemoteAddr()`
 - 改包后 IDEA 里已启动的进程要重启才吃到新类
-- 角色创建：名称 `trim` 后必填且唯一；`administrator` 缺省 false 用 `Boolean.TRUE.equals`；`id` 留空走雪花，`seq` 与时间留空
-- 用户：登录名 `trim` 后写入 `username`，小写写入 `usernameNorm` 并据此查重；密码只存哈希；`enabled` 创建时用 `!Boolean.FALSE.equals` 缺省 true。编辑不改登录名，`enabled` 不传则保持原值，密码空白则不改哈希。分配角色是全量覆盖，`roleIds` 空则清空。不写这次审计。接口返回不含 `passwordHash`
+- 角色：名称 `trim` 后必填且唯一（编辑用 `ne` 排除自己）；描述可空，更新用 `LambdaUpdateWrapper.set` 才能写成 null；`administrator` 缺省 false 用 `Boolean.TRUE.equals`；列表按 `seq` 升序。`id` 留空走雪花，`seq` 与时间留空
+- 用户：登录名 `trim` 后写入 `username`，`Locale.ROOT` 小写写入 `usernameNorm` 并据此查重；密码只存 `PasswordEncoder.encode` 的结果。创建时 `enabled` 用 `!Boolean.FALSE.equals`，缺省 true。编辑不改登录名；`enabled` 不传则保持原值；密码空白则不改哈希。分配角色是全量覆盖，`roleIds` 为 null 或空则清空。接口用 `UserResponse`，不含 `passwordHash`
+- 菜单：名称 `trim` 后必填。类型只有 `MENU` / `BUTTON`。空白路由存 null。`sort` 缺省 0，`hidden` 只有传入 true 才为 true。页面权限码存 null
 
 ---
 
@@ -104,39 +103,40 @@ com.velrix
 - Spring Boot 4 的 `ObjectMapper` 在 `tools.jackson.databind`。注解仍是 `com.fasterxml.jackson.annotation`
 - 只有 `flyway-core` 时启动不会迁移。已用 `spring-boot-starter-flyway`，并保留 `flyway-mysql`
 - `SecurityConfig` 的过滤链方法必须有 `@Bean`
-- 已执行的 Flyway 脚本不要改。本机库已到 version 11。新数据用下一个版本号
+- 已执行的 Flyway 脚本不要改。本机库已到 version **12**。新数据用 V13 起
 - Windows 终端中文是 GBK 乱码；HTTP body 实际是 UTF-8。核对中文用 `mysql --default-character-set=utf8mb4`
 - `pom.xml` 的 `java.version` 是 17。不要加 `--enable-preview` 去配源码 21
 - `DELETE` 语句不写 `*`
+- `updateById` 会跳过 null 字段。要清空的列用 `LambdaUpdateWrapper.set`。用户编辑要保留原密码时，不要把哈希 `set` 成 null
+- 测试里不要把助手方法命名为 `delete`，会和 `MockMvcRequestBuilders.delete` 的静态导入撞车
 
 ---
 
 ## 运行
 
-- 授权与菜单：`.\mvnw.cmd test "-Dtest=RoleMenuControllerTest,MenuAccessServiceTest"`
-- 单类：`.\mvnw.cmd test -Dtest=PurchaseOrderControllerTest`
+- 菜单接口：`.\mvnw.cmd test -Dtest=MenuControllerTest`
+- 角色接口：`.\mvnw.cmd test -Dtest=RoleControllerTest`
+- 用户接口：`.\mvnw.cmd test -Dtest=UserControllerTest`
+- 授权与侧栏：`.\mvnw.cmd test "-Dtest=RoleMenuControllerTest,MenuAccessServiceTest"`
 - 全量：`.\mvnw.cmd test`（会写库，先问用户）
 - 启动：IDEA 跑 `com.velrix.VelrixApplication`，或 `.\mvnw.cmd spring-boot:run`。长命令拆开跑，不要把打包、启动、轮询串成一条
 
-演示数据在 `V7__seed_m0_platform.sql`、`V8__seed_child_menu_only.sql`、`V9__seed_role_grant_menu.sql`、`V10__seed_role_crud_menus.sql`、`V11__seed_user_crud_menus.sql`。本文不记密码。
+演示数据在 `V7__seed_m0_platform.sql` 到 `V12__seed_menu_crud_menus.sql`。本文不记密码。
 
-固定 id：角色 1/2/3，用户 1001 `admin`、1002 `lisi`、1003 `wangwu`，菜单 2000～2010、2100～2102。`sys_org` 还没做。
-
-角色接口测试：`.\mvnw.cmd test -Dtest=RoleControllerTest`  
-用户接口测试：`.\mvnw.cmd test -Dtest=UserControllerTest`
+固定 id：角色 1/2/3，用户 1001 `admin`、1002 `lisi`、1003 `wangwu`，菜单 2000～2014、2100～2102。`sys_org` 还没做。
 
 ---
 
 ## 开发者
 
-第一次写 Java。会拿分层文档纠正包结构，以课表为准。终端里长命令会干等。数据库的增删改必须先得到同意。
+第一次写 Java。会拿分层文档纠正包结构，以课表为准。终端里长命令会干等。数据库的增删改必须先得到同意。Flyway 脚本可以由代理写，执行由开发者自己做。
 
 ---
 
 ## 参考
 
 - `docs/Velrix-SpringBoot重写需求文档.md`（§3.2 分层、§3.4 接口、M0 章）
-- `docs/M0-平台底座需求.md`（下一功能从 M0-F-30 起）
+- `docs/M0-平台底座需求.md`（下一功能从 M0-F-13 起）
 - 原项目 `D:\gitProject\VelrixWorkHub`：只参考业务规则，不抄代码和形状
 
 ---
@@ -145,7 +145,7 @@ com.velrix
 
 | Skill | 何时用 |
 |-------|--------|
-| `learning-mentor` | 引导写菜单树维护（当前主模式） |
+| `learning-mentor` | 引导写用户列表（下一会话的主模式） |
 | `codebase-design` | 再动包或模块边界时 |
 | `clean-code` | 分包、命名 |
 | `tdd` | 补验收测试 |

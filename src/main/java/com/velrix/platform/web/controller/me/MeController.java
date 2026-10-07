@@ -2,7 +2,7 @@ package com.velrix.platform.web.controller.me;
 
 import com.velrix.platform.application.auth.AuthService;
 import com.velrix.platform.application.access.MenuAccessService;
-import com.velrix.platform.application.access.result.UserAccess;
+import com.velrix.platform.application.access.dto.UserAccessResponse;
 import com.velrix.platform.infrastructure.security.AuthUser;
 import com.velrix.platform.domain.user.SysUser;
 import com.velrix.shared.api.ApiResponse;
@@ -27,7 +27,7 @@ public class MeController {
 
         AuthUser authUser = (AuthUser) authentication.getPrincipal();
         SysUser user = authService.getById(authUser.id());
-        UserAccess access = menuAccessService.loadAccess(authUser.id());
+        UserAccessResponse access = menuAccessService.loadAccess(authUser.id());
         return ApiResponse.ok(new MeResponse(user.getId(), user.getUsername(), user.getDisplayName(),access.menus(), access.permCodes()));
     }
 }

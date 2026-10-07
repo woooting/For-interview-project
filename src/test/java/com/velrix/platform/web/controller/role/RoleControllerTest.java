@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -32,6 +33,34 @@ class RoleControllerTest {
 
 	@Autowired
 	private AuthService authService;
+
+	/**
+	 * 真打 POST /api/roles：断言响应里带 MyBatis-Plus 生成的 id，以及 insert 后 selectById 回填的 seq、时间。
+	 * {@link Transactional} 会在用例结束时回滚，不落库。
+	 */
+	@Test
+	@Transactional
+	void createRole_responseIncludesNewIdAndFieldsReloadedFromDb() throws Exception {
+		MvcResult created = create("admin",
+				"{\"name\":\"雪花id回填验证角色\",\"description\":\"测 create 返回最新行\"}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.code").value(ApiCodes.OK))
+				.andReturn();
+
+		String json = created.getResponse().getContentAsString(StandardCharsets.UTF_8);
+		System.out.println("POST /api/roles 响应 JSON: " + json);
+
+		Number id = JsonPath.read(json, "$.data.id");
+		assertNotNull(id, "create 响应应包含新生成的 id");
+		assertTrue(id.longValue() > 0, "id 应为正数（雪花等策略生成）");
+
+		Object seq = JsonPath.read(json, "$.data.seq");
+		Object createdAt = JsonPath.read(json, "$.data.createdAt");
+		Object updatedAt = JsonPath.read(json, "$.data.updatedAt");
+		assertNotNull(seq, "selectById 后应带回数据库 seq");
+		assertNotNull(createdAt, "selectById 后应带回 createdAt");
+		assertNotNull(updatedAt, "selectById 后应带回 updatedAt");
+	}
 
 	@Test
 	@Transactional

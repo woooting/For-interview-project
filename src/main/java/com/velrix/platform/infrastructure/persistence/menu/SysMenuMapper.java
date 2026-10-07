@@ -24,6 +24,9 @@ public interface SysMenuMapper extends BaseMapper<SysMenu> {
     @Delete("DELETE  FROM sys_role_menu WHERE role_id = #{roleId}")
     int deleteByRoleId(@Param("roleId") Long roleId);
 
+    @Delete("DELETE FROM sys_role_menu WHERE menu_id = #{menuId}")
+    int deleteByMenuId(@Param("menuId") Long menuId);
+
     @Insert("INSERT INTO sys_role_menu (role_id,menu_id) VALUES (#{roleId},#{menuId})")
     int insertRoleMenu(@Param("roleId") Long roleId, @Param("menuId") Long menuId);
 }

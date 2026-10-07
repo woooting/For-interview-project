@@ -1,6 +1,6 @@
 package com.velrix.platform.web.controller.role;
 
-import com.velrix.platform.application.role.result.RoleMenuDiff;
+import com.velrix.platform.application.role.dto.RoleMenuDiffResponse;
 import com.velrix.platform.application.role.RoleMenuService;
 import com.velrix.platform.infrastructure.security.AuthUser;
 import com.velrix.shared.api.ApiResponse;
@@ -21,7 +21,7 @@ public class RoleMenuController {
 
     @PutMapping("/{id}/menus")
     @RequirePerm("role:grant-menus")
-    public ApiResponse<RoleMenuDiff> replace(
+    public ApiResponse<RoleMenuDiffResponse> replace(
             @PathVariable("id")Long id,
             @RequestBody ReplaceRoleMenusRequest body,
             HttpServletRequest request){
@@ -34,7 +34,7 @@ public class RoleMenuController {
         List<Long> menuIds = (body.menuIds() == null || body.menuIds().isEmpty())
                 ? null
                 : body.menuIds();
-        RoleMenuDiff diff = roleMenuService.replace(id,menuIds,actor,ip);
+        RoleMenuDiffResponse diff = roleMenuService.replace(id,menuIds,actor,ip);
         return ApiResponse.ok(diff);
     }
 }

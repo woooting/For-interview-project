@@ -32,7 +32,7 @@ public class RoleService {
         role.setDescription(description);
         role.setAdministrator( Boolean.TRUE.equals(administrator)); // null 要落成 false，true 才是超级管理员
         sysRoleMapper.insert(role);
-        return role;
+        return sysRoleMapper.selectById(role.getId());
     }
 
     public SysRole update(Long id, String name, String description, Boolean administrator) {

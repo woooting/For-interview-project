@@ -1,7 +1,7 @@
 package com.velrix.platform.application.access;
 
-import com.velrix.platform.application.access.result.MenuNode;
-import com.velrix.platform.application.access.result.UserAccess;
+import com.velrix.platform.application.access.dto.MenuNodeResponse;
+import com.velrix.platform.application.access.dto.UserAccessResponse;
 import com.velrix.platform.domain.menu.SysMenu;
 import com.velrix.platform.domain.role.SysRole;
 import com.velrix.platform.infrastructure.persistence.menu.SysMenuMapper;
@@ -75,7 +75,7 @@ public class MenuAccessService {
         return new ArrayList<>(resultMap.values());
     }
 
-    public UserAccess loadAccess(Long userId) {
+    public UserAccessResponse loadAccess(Long userId) {
 
         List<SysMenu> visible = listVisibleMenus(userId);
         // 把button权限级别的PermCode 装起来  他们不用做树状结构化
@@ -92,19 +92,19 @@ public class MenuAccessService {
                 .toList();
 
         // 把数据丢到map里面 准备塞children 这里用hashmap id是menu实体的id，方便查询menu的父节点
-        Map<Long,MenuNode> treeList = new HashMap<>();
+        Map<Long,MenuNodeResponse> treeList = new HashMap<>();
         for (SysMenu menu : menuList) {
-            MenuNode node = new MenuNode(menu.getId(),menu.getName(), menu.getPath(), new ArrayList<>());
+            MenuNodeResponse node = new MenuNodeResponse(menu.getId(),menu.getName(), menu.getPath(), new ArrayList<>());
             treeList.put(menu.getId(),node);
         }
 
-        List<MenuNode> menus = new ArrayList<>();
+        List<MenuNodeResponse> menus = new ArrayList<>();
         for (SysMenu m : menuList) {
             Long parentId =  m.getParentId();
             Long id = m.getId();
 
-            MenuNode Item = treeList.get(id);
-            MenuNode parentItem = treeList.get(parentId);
+            MenuNodeResponse Item = treeList.get(id);
+            MenuNodeResponse parentItem = treeList.get(parentId);
 
             if(m.getParentId() == null || !treeList.containsKey(parentId)) {
                 menus.add(Item);
@@ -112,7 +112,7 @@ public class MenuAccessService {
                 parentItem.children().add(Item);
             }
         }
-        return new UserAccess(menus,buttonList);
+        return new UserAccessResponse(menus,buttonList);
     }
     public boolean hasPerm(Long userId, String code) {
         return loadAccess(userId).permCodes().contains(code);

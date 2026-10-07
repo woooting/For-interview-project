@@ -10,7 +10,7 @@ import com.velrix.shared.exception.BizException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import com.velrix.platform.application.role.result.RoleMenuDiff;
+import com.velrix.platform.application.role.dto.RoleMenuDiffResponse;
 import com.velrix.platform.domain.role.SysRole;
 import com.velrix.platform.domain.audit.SysAuditLog;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +28,7 @@ public class RoleMenuService {
     private final SysAuditLogMapper sysAuditLogMapper;
 
     // 用 menuIds 全量替换该角色的菜单绑定，并返回相对变更前的增删 diff
-    public RoleMenuDiff replace(Long roleId, List<Long> menuIds, String actor, String ip) {
+    public RoleMenuDiffResponse replace(Long roleId, List<Long> menuIds, String actor, String ip) {
         SysRole role = sysRoleMapper.selectById(roleId);
         if (role == null) {
             throw new BizException(ApiCodes.BIZ_ERROR,"该角色不存在");
@@ -61,7 +61,7 @@ public class RoleMenuService {
             sysMenuMapper.insertRoleMenu(roleId, id);
         }
         saveGrantAudit(role, added, removed, actor, ip);
-        return new RoleMenuDiff(added, removed);
+        return new RoleMenuDiffResponse(added, removed);
     }
 
     // 写入 sys_audit_log（只插入，summary 对齐 varchar(512)）
