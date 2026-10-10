@@ -1,9 +1,9 @@
 # HandOff — AAA / Velrix M0 平台底座
 
-> 菜单树维护（M0-F-30～32）已完成，不要重做。登录、菜单可见性、角色授权、角色 CRUD、用户创建/编辑/分配角色也不要重做。包名是 `dto`，不要改回 `result`。下一会话若继续，先跟开发者确认，再做 P1 用户列表（M0-F-13）。  
+> 菜单树维护（M0-F-30～32）已完成，不要重做。登录、菜单可见性、角色授权、角色 CRUD、用户创建/编辑/分配角色也不要重做。**M0-F-13 接口代码由开发者写**；Flyway **V13**（`user:list` 菜单 2015）已由代理写好。包名是 `dto`，不要改回 `result`。  
 > 更新：2026-10-07。`master` 与 `origin/master` 对齐，改动都还在工作区，未提交。需求全文不抄，看下面的引用。
 
-主模式是带着开发者写：先讲数据流，再给填空，不要一次把类写完。开发者说「你来」时，只写卡住的那一段并解释。技能文件：`~/.cursor/skills/learning-mentor/SKILL.md`。
+主模式是 **learning-mentor v2.3**：蓝图 + 分步带做；**业务代码开发者写**（说「你来」才代写）；**Flyway 脚本、验收测试由代理写**，测试由代理跑。代理**不得**在用户只要求 sql 时顺带实现接口。技能：`~/.cursor/skills/learning-mentor/SKILL.md`。
 
 ---
 
@@ -30,6 +30,7 @@ M0 v0.1 的 P0 共 20 项，都已落地。不在这个范围内的有：登出�
 | 角色授权 | `PUT /api/roles/{id}/menus`，`application/role/RoleMenuService`；差值在 `role/dto/RoleMenuDiffResponse`。`@RequirePerm("role:grant-menus")` |
 | 角色创建 / 编辑 / 列表 | `application/role/RoleService`；`POST` / `PUT /{id}` / `GET /api/roles` |
 | 用户创建 / 编辑 / 分配角色 | `application/user/UserService`；`POST /api/users`、`PUT /api/users/{id}`、`PUT /api/users/{id}/roles` |
+| M0-F-13 进行中 | 权限 **V13** `user:list`；待开发者补 `GET /api/users`、`GET /api/users/{id}`（详情建议含 `roleIds`，对标 `RoleService.list()`） |
 | 菜单树维护 | `application/menu/MenuService`；`web/controller/menu/MenuController` 的 `POST/PUT/GET/DELETE /api/menus` |
 | 权限注解与拦截 | `shared/web/RequirePerm`；`web/config/RequirePermInterceptor`，由同包 `WebMvcConfig` 注册 |
 | 试权限接口 | `POST /api/purchase-orders/submit`。还不是采购业务 |
@@ -40,14 +41,14 @@ M0 v0.1 的 P0 共 20 项，都已落地。不在这个范围内的有：登出�
 
 ### 已验证
 
-- 库：Flyway 版本 **12**。菜单 `2011`～`2014` 挂在 `2003`（菜单管理）下，权限码 `menu:list`、`menu:create`、`menu:update`、`menu:delete`。不写 `sys_role_menu`
+- 库：Flyway 版本 **13**（含 `2015` / `user:list`）。`2011`～`2014` 为菜单维护按钮。不写 `sys_role_menu`
 - `.\mvnw.cmd test -Dtest=MenuControllerTest`：3 个通过。写库用例带 `@Transactional`，跑完回滚
 - 真实进程（8080）：管理员的菜单树里有这四个按钮；李四 `GET /api/menus` 为 403
 - 角色、用户接口测试此前已通过。全量 `.\mvnw.cmd test` 前先问用户。`AuthServiceTest` 会改李四的 `enabled` 再改回
 
 ### 下一步
 
-先跟开发者确认，再做 P1 用户列表（M0-F-13）。登出、`GET /api/audit-logs`、Redis、组织树都不是默认的下一步。新 Flyway 从 **V13** 起。会写库的脚本和测试先得到同意，脚本可写，执行由开发者自己做。
+**下一步：开发者实现 M0-F-13**（Service + Controller；完成后由代理补测并跑 `UserControllerTest`）。之后 P1：登出、审计等，先确认再做。新 Flyway 从 **V14** 起。
 
 ---
 
@@ -129,7 +130,7 @@ com.velrix
 
 ## 开发者
 
-第一次写 Java。会拿分层文档纠正包结构，以课表为准。终端里长命令会干等。数据库的增删改必须先得到同意。Flyway 脚本可以由代理写，执行由开发者自己做。
+第一次写 Java。会拿分层文档纠正包结构，以课表为准。**Flyway 脚本与功能测试由代理写并跑测试**；**业务接口由开发者写**（代理只写 sql 时不碰 Java）。数据库的增删改必须先得到同意。
 
 ---
 

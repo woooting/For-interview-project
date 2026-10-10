@@ -1,6 +1,7 @@
 package com.velrix.platform.application.user;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.velrix.platform.application.user.dto.UserDetailResponse;
 import com.velrix.platform.domain.user.SysUser;
 import com.velrix.platform.infrastructure.persistence.role.SysRoleMapper;
 import com.velrix.shared.api.ApiCodes;
@@ -93,4 +94,21 @@ public class UserService {
 
         return new ArrayList<>(newIds);
     }
+
+    public List<SysUser> list(){
+        return   sysUserMapper.selectList(
+                new LambdaQueryWrapper<SysUser>().orderByAsc(SysUser::getId)
+        );
+    }
+
+    public UserDetailResponse getDetail(Long id){
+        SysUser user =  sysUserMapper.selectById(id);
+        if(user == null){
+            throw new BizException(ApiCodes.BIZ_ERROR,"该用户不存在");
+        }
+        List<Long> roleIds = sysRoleMapper.selectRoleIdsByUserId(id);
+        roleIds = roleIds == null ? List.of() : roleIds;
+        return new UserDetailResponse(user.getId(),user.getUsername(),user.getDisplayName(),user.getEnabled(),roleIds);
+    }
+
 }

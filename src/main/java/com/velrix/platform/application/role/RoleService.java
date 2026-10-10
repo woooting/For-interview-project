@@ -62,6 +62,7 @@ public class RoleService {
         return sysRoleMapper.selectById(id);
     }
     public List<SysRole> list() {
+
         return sysRoleMapper.selectList(
                 new LambdaQueryWrapper<SysRole>().orderByAsc(SysRole::getSeq));
     }

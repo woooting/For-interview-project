@@ -42,4 +42,6 @@ public class UserController {
     private UserResponse toResponse(SysUser user) {
         return new UserResponse(user.getId(), user.getUsername(), user.getDisplayName(), user.getEnabled());
     }
+
+    @GetMapping
 }
