@@ -15,12 +15,15 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -123,6 +126,39 @@ class UserControllerTest {
 	}
 
 	@Test
+	@Transactional
+	void admin_listsUsers_andGetsDetailWithRoleIds() throws Exception {
+		String listed = listUsers("admin")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.code").value(ApiCodes.OK))
+				.andReturn()
+				.getResponse()
+				.getContentAsString(StandardCharsets.UTF_8);
+		List<String> usernames = JsonPath.read(listed, "$.data[*].username");
+		assertTrue(usernames.contains("admin"));
+		assertTrue(usernames.contains("lisi"));
+		List<Number> ids = JsonPath.read(listed, "$.data[*].id");
+		for (int i = 1; i < ids.size(); i++) {
+			assertTrue(ids.get(i).longValue() >= ids.get(i - 1).longValue());
+		}
+		listUsers("admin")
+				.andExpect(jsonPath("$.data[0].passwordHash").doesNotExist())
+				.andExpect(jsonPath("$.data[0].usernameNorm").doesNotExist());
+
+		getUser(1002L, "admin")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.id").value(1002))
+				.andExpect(jsonPath("$.data.username").value("lisi"))
+				.andExpect(jsonPath("$.data.enabled").value(true))
+				.andExpect(jsonPath("$.data.roleIds", hasItem(2)))
+				.andExpect(jsonPath("$.data.passwordHash").doesNotExist());
+
+		getUser(999999999L, "admin")
+				.andExpect(status().is(422))
+				.andExpect(jsonPath("$.message").value("该用户不存在"));
+	}
+
+	@Test
 	void lisi_userCrud_forbidden() throws Exception {
 		create("lisi", "{\"username\":\"验收用户乙\",\"displayName\":\"乙\",\"password\":\"old-pass-1\"}")
 				.andExpect(status().isForbidden())
@@ -134,6 +170,14 @@ class UserControllerTest {
 				.andExpect(jsonPath("$.code").value(ApiCodes.FORBIDDEN));
 
 		replaceRoles(1002L, "lisi", "{\"roleIds\":[2]}")
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value(ApiCodes.FORBIDDEN));
+
+		listUsers("lisi")
+				.andExpect(status().isForbidden())
+				.andExpect(jsonPath("$.code").value(ApiCodes.FORBIDDEN));
+
+		getUser(1002L, "lisi")
 				.andExpect(status().isForbidden())
 				.andExpect(jsonPath("$.code").value(ApiCodes.FORBIDDEN));
 	}
@@ -162,6 +206,16 @@ class UserControllerTest {
 				.header("Authorization", "Bearer " + token(username))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(json));
+	}
+
+	private ResultActions listUsers(String username) throws Exception {
+		return mockMvc.perform(get("/api/users")
+				.header("Authorization", "Bearer " + token(username)));
+	}
+
+	private ResultActions getUser(long id, String username) throws Exception {
+		return mockMvc.perform(get("/api/users/" + id)
+				.header("Authorization", "Bearer " + token(username)));
 	}
 
 	private String token(String username) {
