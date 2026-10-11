@@ -1,6 +1,7 @@
 package com.velrix.platform.web.controller.auth;
 
 import com.velrix.platform.application.auth.AuthService;
+import com.velrix.platform.application.auth.dto.LoginTokens;
 import com.velrix.shared.api.ApiCodes;
 import com.velrix.shared.api.ApiResponse;
 import com.velrix.shared.exception.BizException;
@@ -20,8 +21,8 @@ public class AuthController {
 
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(@RequestBody LoginRequest request) {
-        String jwtToken = authService.login(request.username(), request.password());
-        return ApiResponse.ok(new LoginResponse(jwtToken));
+        LoginTokens tokens = authService.login(request.username(), request.password());
+        return ApiResponse.ok(new LoginResponse(tokens.accessToken(), tokens.refreshToken()));
     }
 
     @PostMapping("/logout")
