@@ -1,6 +1,6 @@
 # HandOff — AAA / Velrix M0 平台底座
 
-> **M0-F-60 组织 CRUD + 树** 已完成（V15 表、V16 菜单、`/api/orgs`、`OrgControllerTest` 3 绿）。**M0-F-61** 用户可选 `orgId` **未做**。登出 + Redis → **v0.2**。  
+> **M0-F-60 / M0-F-61** 已完成：组织树 + 用户可选 `orgId`（创建/更新/列表/详情）。登出 + Redis → **v0.2**。  
 > 更新：2026-10-11。需求见 `docs/M0-平台底座需求.md` §3.7。
 
 主模式 **learning-mentor v2.3**：蓝图 + 分步；Flyway / 测试常由代理写并跑。技能：`~/.cursor/skills/learning-mentor/SKILL.md`。
@@ -23,7 +23,8 @@
 | RBAC、菜单维护、用户/角色 CRUD | 见既有 Controller / Service |
 | 角色授权 + 写审计 | `RoleMenuService` → `sys_audit_log` |
 | 审计查询 | `GET /api/audit-logs`，`audit:list`（V14） |
-| **组织树** | `OrgService`、`OrgController` → `GET/POST/PUT/DELETE /api/orgs`；权限 `org:*`（V16 菜单 **2018～2022**） |
+| **组织树** | `OrgService`、`OrgController` → `/api/orgs`；权限 `org:*`（V16 **2018～2022**） |
+| **用户归属组织** | `CreateUserRequest` / `UpdateUserRequest` 可选 `orgId`；更新时 `orgId==null` **不修改**原部门；`UserService.requireOrgExists` |
 
 ### 组织 API（已实现）
 
@@ -34,15 +35,15 @@
 ### 已验证
 
 - Flyway **16**（V15 `sys_org`，V16 组织菜单种子）
-- `OrgControllerTest` **3**；另有 `UserControllerTest` 4、`AuditLogControllerTest` 2、`MenuControllerTest` 3
+- `OrgControllerTest` 3、`UserControllerTest` **5**、`AuditLogControllerTest` 2、`MenuControllerTest` 3
 - 全量 `.\mvnw.cmd test` 前先问用户
 
 ### 下一步
 
-1. **F-61**：用户创建/编辑/详情 **可选 `orgId`**，`UserService` 校验 org 存在；`UserControllerTest` 补用例。  
-2. 之后 **v0.2**（Redis + 登出）或 **M1 主数据**。
+1. **v0.2**：Redis + 登出黑名单等。  
+2. 或 **M1 主数据**。  
 
-新 Flyway 从 **V17** 起（若 F-61 仅改 Java 可不需要迁移）。
+新 Flyway 从 **V17** 起。
 
 ---
 

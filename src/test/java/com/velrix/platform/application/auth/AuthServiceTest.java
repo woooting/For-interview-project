@@ -67,4 +67,5 @@ class AuthServiceTest {
 			sysUserMapper.updateById(lisi);
 		}
 	}
+
 }

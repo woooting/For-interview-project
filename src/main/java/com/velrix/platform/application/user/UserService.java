@@ -2,7 +2,9 @@ package com.velrix.platform.application.user;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.velrix.platform.application.user.dto.UserDetailResponse;
+import com.velrix.platform.domain.org.SysOrg;
 import com.velrix.platform.domain.user.SysUser;
+import com.velrix.platform.infrastructure.persistence.org.SysOrgMapper;
 import com.velrix.platform.infrastructure.persistence.role.SysRoleMapper;
 import com.velrix.shared.api.ApiCodes;
 import com.velrix.shared.exception.BizException;
@@ -22,8 +24,9 @@ public class UserService {
     private final SysUserMapper sysUserMapper;
     private final PasswordEncoder passwordEncoder;
     private final SysRoleMapper sysRoleMapper;
+    private final SysOrgMapper sysOrgMapper;
 
-    public SysUser create(String username, String displayName, String rawPassword, Boolean enabled) {
+    public SysUser create(String username, String displayName, String rawPassword, Boolean enabled,Long orgId) {
         if (username == null || username.isBlank()) {
             throw new BizException(ApiCodes.BIZ_ERROR, "登录名不能为空");
         }
@@ -40,17 +43,24 @@ public class UserService {
         if (existing != null) {
             throw new BizException(ApiCodes.BIZ_ERROR, "该用户已经存在");
         }
+
         SysUser user = new SysUser();
         user.setUsername(trimmed);
         user.setUsernameNorm(norm);
         user.setDisplayName(displayName.trim());
+        user.setOrgId(orgId);
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setEnabled(!Boolean.FALSE.equals(enabled));
+        //校验组织id 可以为null 视为不归属任何部门
+        if (orgId != null) {
+            requireOrgExists(orgId);
+            user.setOrgId(orgId);
+        }
         sysUserMapper.insert(user);
         return user;
     }
 
-    public SysUser update(Long id, String displayName, String rawPassword, Boolean enabled) {
+    public SysUser update(Long id, String displayName, String rawPassword, Boolean enabled,Long orgId) {
         if (id == null) {
             throw new BizException(ApiCodes.BIZ_ERROR, "该用户不存在");
         }
@@ -61,7 +71,10 @@ public class UserService {
         if (displayName == null || displayName.isBlank()) {
             throw new BizException(ApiCodes.BIZ_ERROR, "昵称不能为空");
         }
-
+        if (orgId != null) {
+            requireOrgExists(orgId);
+            user.setOrgId(orgId);
+        }
         user.setDisplayName(displayName.trim());
         if (enabled != null) {
             user.setEnabled(enabled);
@@ -108,7 +121,24 @@ public class UserService {
         }
         List<Long> roleIds = sysRoleMapper.selectRoleIdsByUserId(id);
         roleIds = roleIds == null ? List.of() : roleIds;
-        return new UserDetailResponse(user.getId(),user.getUsername(),user.getDisplayName(),user.getEnabled(),roleIds);
+        return new UserDetailResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getDisplayName(),
+                user.getEnabled(),
+                user.getOrgId(),
+                roleIds);
     }
+
+    private void requireOrgExists(Long orgId) {
+        if(orgId == null) {
+            return;
+        }
+        SysOrg org = sysOrgMapper.selectById(orgId);
+        if (org == null) {
+            throw new BizException(ApiCodes.BIZ_ERROR, "该部门不存在");
+        }
+     }
+
 
 }

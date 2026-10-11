@@ -17,13 +17,13 @@ public class UserController {
     private final UserService userService;
     // 去除user隐私数据
     private UserResponse toResponse(SysUser user) {
-        return new UserResponse(user.getId(), user.getUsername(), user.getDisplayName(), user.getEnabled());
+        return new UserResponse(user.getId(), user.getUsername(), user.getDisplayName(), user.getEnabled(), user.getOrgId());
     }
 
     @PostMapping
     @RequirePerm("user:create")
     public ApiResponse<UserResponse> create(@RequestBody CreateUserRequest body) {
-        SysUser user = userService.create(body.username(), body.displayName(), body.password(), body.enabled());
+        SysUser user = userService.create(body.username(), body.displayName(), body.password(), body.enabled(), body.orgId());
         return ApiResponse.ok(toResponse(user));
     }
 
@@ -32,7 +32,7 @@ public class UserController {
     public ApiResponse<UserResponse> update(
             @PathVariable("id") Long id,
             @RequestBody UpdateUserRequest body) {
-        SysUser user = userService.update(id,body.displayName(), body.password(), body.enabled());
+        SysUser user = userService.update(id,body.displayName(), body.password(), body.enabled(), body.orgId());
         return ApiResponse.ok(toResponse(user));
     }
     @PutMapping("/{id}/roles")

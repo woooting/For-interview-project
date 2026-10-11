@@ -1,6 +1,8 @@
 package com.velrix.platform.infrastructure.security;
 
 import com.velrix.platform.domain.user.SysUser;
+import com.velrix.platform.infrastructure.config.VelrixJwtProperties;
+import com.velrix.platform.infrastructure.redis.TokenBlacklistStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,16 +15,23 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class JwtAuthFilterTest {
 
 	private JwtService jwtService;
+	private TokenBlacklistStore tokenBlacklistStore;
 	private JwtAuthFilter filter;
 
 	@BeforeEach
 	void setUp() {
-		jwtService = new JwtService("velrix-test-secret-key-0123456789abcdef", 30);
-		filter = new JwtAuthFilter(jwtService);
+		jwtService = new JwtService(
+				new VelrixJwtProperties("velrix-test-secret-key-0123456789abcdef", 30, 7));
+		tokenBlacklistStore = mock(TokenBlacklistStore.class);
+		when(tokenBlacklistStore.isBlacklisted(anyString())).thenReturn(false);
+		filter = new JwtAuthFilter(jwtService, tokenBlacklistStore);
 		SecurityContextHolder.clearContext();
 	}
 
@@ -36,7 +45,7 @@ class JwtAuthFilterTest {
 		SysUser user = new SysUser();
 		user.setId(1001L);
 		user.setUsername("admin");
-		String token = jwtService.issue(user);
+		String token = jwtService.issueAccess(user);
 
 		MockHttpServletRequest request = new MockHttpServletRequest();
 		request.addHeader("Authorization", "Bearer " + token);
@@ -51,6 +60,23 @@ class JwtAuthFilterTest {
 	}
 
 	@Test
+	void blacklistedToken_noAuthentication() throws Exception {
+		SysUser user = new SysUser();
+		user.setId(1001L);
+		user.setUsername("admin");
+		String token = jwtService.issueAccess(user);
+		String jti = jwtService.parse(token).getId();
+		when(tokenBlacklistStore.isBlacklisted(jti)).thenReturn(true);
+
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addHeader("Authorization", "Bearer " + token);
+
+		filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+		assertNull(SecurityContextHolder.getContext().getAuthentication());
+	}
+
+	@Test
 	void noHeader_noAuthentication() throws Exception {
 		filter.doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), new MockFilterChain());
 
@@ -62,7 +88,7 @@ class JwtAuthFilterTest {
 		SysUser user = new SysUser();
 		user.setId(1001L);
 		user.setUsername("admin");
-		String token = jwtService.issue(user);
+		String token = jwtService.issueAccess(user);
 
 		int mid = token.length() / 2;
 		String tampered = token.substring(0, mid)

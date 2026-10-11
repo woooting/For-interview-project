@@ -123,6 +123,62 @@ class UserControllerTest {
 		replaceRoles(1002L, "admin", "{\"roleIds\":[999999999]}")
 				.andExpect(status().is(422))
 				.andExpect(jsonPath("$.message").value("此角色未创建，无法分配给当前用户"));
+
+		create("admin", "{\"username\":\"验收无部门\",\"displayName\":\"无\",\"password\":\"old-pass-1\",\"orgId\":999999999}")
+				.andExpect(status().is(422))
+				.andExpect(jsonPath("$.message").value("该部门不存在"));
+	}
+
+	@Test
+	@Transactional
+	void admin_createsUserWithOrg_thenUpdatesOrgAndPreservesOrgWhenOmitted() throws Exception {
+		MvcResult orgCreated = mockMvc.perform(post("/api/orgs")
+						.header("Authorization", "Bearer " + token("admin"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"name\":\"用户验收部\",\"sort\":0}"))
+				.andExpect(status().isOk())
+				.andReturn();
+		long orgId = JsonPath.read(
+				orgCreated.getResponse().getContentAsString(StandardCharsets.UTF_8),
+				"$.data.id");
+
+		MvcResult userCreated = create("admin", """
+				{"username":"验收组织用户","displayName":"组织用户","password":"old-pass-1","orgId":%d}
+				""".formatted(orgId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.orgId").value(orgId))
+				.andReturn();
+		long userId = JsonPath.read(
+				userCreated.getResponse().getContentAsString(StandardCharsets.UTF_8),
+				"$.data.id");
+
+		getUser(userId, "admin")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.orgId").value(orgId));
+
+		MvcResult org2 = mockMvc.perform(post("/api/orgs")
+						.header("Authorization", "Bearer " + token("admin"))
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"name\":\"用户验收部二\",\"sort\":1}"))
+				.andExpect(status().isOk())
+				.andReturn();
+		long orgId2 = JsonPath.read(
+				org2.getResponse().getContentAsString(StandardCharsets.UTF_8),
+				"$.data.id");
+
+		update(userId, "admin", """
+				{"displayName":"组织用户","orgId":%d}
+				""".formatted(orgId2))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.orgId").value(orgId2));
+
+		update(userId, "admin", "{\"displayName\":\"组织用户改\"}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.orgId").value(orgId2));
+
+		update(userId, "admin", "{\"displayName\":\"组织用户改\",\"orgId\":999999999}")
+				.andExpect(status().is(422))
+				.andExpect(jsonPath("$.message").value("该部门不存在"));
 	}
 
 	@Test
