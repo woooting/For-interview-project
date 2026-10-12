@@ -88,6 +88,6 @@ class AuditLogControllerTest {
 	}
 
 	private String token(String username) {
-		return authService.login(username, "admin123");
+		return authService.login(username, "admin123").accessToken();
 	}
 }

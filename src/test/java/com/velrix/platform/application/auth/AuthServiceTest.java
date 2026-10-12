@@ -23,7 +23,7 @@ class AuthServiceTest {
 
 	@Test
 	void login_success_returnsJwt() {
-		String token = authService.login("admin", "admin123");
+		String token = authService.login("admin", "admin123").accessToken();
 
 		assertNotNull(token);
 		assertEquals(3, token.split("\\.").length);
@@ -31,7 +31,7 @@ class AuthServiceTest {
 
 	@Test
 	void login_usernameIsCaseInsensitive() {
-		String token = authService.login("ADMIN", "admin123");
+		String token = authService.login("ADMIN", "admin123").accessToken();
 
 		assertNotNull(token);
 	}

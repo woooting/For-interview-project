@@ -59,7 +59,7 @@ class UserControllerTest {
 		Number id = JsonPath.read(
 				created.getResponse().getContentAsString(StandardCharsets.UTF_8),
 				"$.data.id");
-		assertFalse(authService.login(USERNAME, OLD_PASSWORD).isBlank());
+		assertFalse(authService.login(USERNAME, OLD_PASSWORD).accessToken().isBlank());
 
 		update(id.longValue(), "admin", "{\"displayName\":\"验收甲改\",\"enabled\":false}")
 				.andExpect(status().isOk())
@@ -72,12 +72,12 @@ class UserControllerTest {
 				"{\"displayName\":\"验收甲改\",\"password\":\"   \",\"enabled\":true}")
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.enabled").value(true));
-		assertFalse(authService.login(USERNAME, OLD_PASSWORD).isBlank());
+		assertFalse(authService.login(USERNAME, OLD_PASSWORD).accessToken().isBlank());
 
 		update(id.longValue(), "admin",
 				"{\"displayName\":\"验收甲改\",\"password\":\"" + NEW_PASSWORD + "\",\"enabled\":true}")
 				.andExpect(status().isOk());
-		assertFalse(authService.login(USERNAME, NEW_PASSWORD).isBlank());
+		assertFalse(authService.login(USERNAME, NEW_PASSWORD).accessToken().isBlank());
 		assertLoginFailed(USERNAME, OLD_PASSWORD);
 
 		replaceRoles(id.longValue(), "admin", "{\"roleIds\":[2,3,2]}")
@@ -275,6 +275,6 @@ class UserControllerTest {
 	}
 
 	private String token(String username) {
-		return authService.login(username, "admin123");
+		return authService.login(username, "admin123").accessToken();
 	}
 }

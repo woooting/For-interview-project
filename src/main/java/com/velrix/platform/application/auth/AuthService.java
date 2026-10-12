@@ -3,7 +3,6 @@ package com.velrix.platform.application.auth;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.velrix.platform.application.auth.dto.LoginTokens;
 import com.velrix.platform.domain.user.SysUser;
-import com.velrix.platform.infrastructure.config.VelrixJwtProperties;
 import com.velrix.platform.infrastructure.persistence.user.SysUserMapper;
 import com.velrix.platform.infrastructure.redis.LoginAttemptStore;
 import com.velrix.platform.infrastructure.redis.RefreshTokenStore;
@@ -32,12 +31,11 @@ public class AuthService {
     private final TokenBlacklistStore tokenBlacklistStore;
     private final LoginAttemptStore loginAttemptStore;
     private final RefreshTokenStore refreshTokenStore;
-    private final VelrixJwtProperties velrixJwtProperties;
 
     public LoginTokens login(String username, String rawPassword) {
         String norm = username.trim().toLowerCase(Locale.ROOT);
-        if(loginAttemptStore.isLocked(norm)){
-            throw new BizException(ApiCodes.BIZ_ERROR,"账号已锁定，请稍后重试");
+        if (loginAttemptStore.isLocked(norm)) {
+            throw new BizException(ApiCodes.BIZ_ERROR, "账号已锁定，请稍后重试");
         }
         SysUser user = sysUserMapper.selectOne(
                 new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsernameNorm, norm));
@@ -45,27 +43,52 @@ public class AuthService {
             authenticate(user, rawPassword);
             loginAttemptStore.clearFailure(norm);
             return issueTokenPair(user);
-        }catch (BizException e){
+        } catch (BizException e) {
             if (ApiCodes.BIZ_LOGIN_FAILED.equals(e.getCode())) {
                 loginAttemptStore.recordFailure(norm);
             }
             throw e;
         }
-
     }
 
+    public LoginTokens login(Long id, String rawPassword) {
+        SysUser user = sysUserMapper.selectById(id);
+        authenticate(user, rawPassword);
+        return issueTokenPair(user);
+    }
 
-    public void logout(String accessToken) {
+    public void logout(String accessToken, String refreshToken) {
         try {
             Claims claims = jwtService.parse(accessToken);
-            if (!JwtService.TYP_ACCESS.equals(claims.get(JwtService.CLAIM_TYP, String.class))) {
-                return;
+            if (JwtService.TYP_ACCESS.equals(claims.get(JwtService.CLAIM_TYP, String.class))) {
+                String jti = claims.getId();
+                if (StringUtils.hasText(jti) && !tokenBlacklistStore.isBlacklisted(jti)) {
+                    tokenBlacklistStore.blacklist(jti, Duration.ofSeconds(jwtService.remainingTtlSeconds(claims)));
+                }
             }
-            String jti = claims.getId();
-            if (!StringUtils.hasText(jti) || tokenBlacklistStore.isBlacklisted(jti)) {
-                return;
+        } catch (JwtException e) {
+            throw new BizException(ApiCodes.UNAUTHORIZED, "未登录或登录已过期");
+        }
+        revokeRefreshToken(refreshToken);
+    }
+
+    public LoginTokens refresh(String refreshToken) {
+        try {
+            Claims c = jwtService.parse(refreshToken);
+            if (!JwtService.TYP_REFRESH.equals(c.get(JwtService.CLAIM_TYP, String.class))) {
+                throw new BizException(ApiCodes.UNAUTHORIZED, "未登录或登录已过期");
             }
-            tokenBlacklistStore.blacklist(jti, Duration.ofSeconds(jwtService.remainingTtlSeconds(claims)));
+            String jti = c.getId();
+            if (!StringUtils.hasText(jti) || !refreshTokenStore.isActiveRefreshToken(jti)) {
+                throw new BizException(ApiCodes.UNAUTHORIZED, "未登录或登录已过期");
+            }
+            Long userId = Long.parseLong(c.getSubject());
+            SysUser user = sysUserMapper.selectById(userId);
+            if (user == null || !Boolean.TRUE.equals(user.getEnabled())) {
+                throw new BizException(ApiCodes.UNAUTHORIZED, "未登录或登录已过期");
+            }
+            refreshTokenStore.revoke(jti);
+            return issueTokenPair(user);
         } catch (JwtException e) {
             throw new BizException(ApiCodes.UNAUTHORIZED, "未登录或登录已过期");
         }
@@ -75,22 +98,6 @@ public class AuthService {
         return sysUserMapper.selectById(id);
     }
 
-    public LoginTokens refresh(String refreshToken) {
-        Claims c  = jwtService.parse(refreshToken);
-        String jti = c.getId();
-        Long userId = Long.parseLong(c.getSubject());
-        SysUser user = sysUserMapper.selectById(userId);
-        if(user == null || !user.getEnabled()){
-            throw new BizException(ApiCodes.BIZ_ERROR,"该用户不存在或者已禁用");
-        }
-        if(refreshTokenStore.isActiveRefreshToken(jti)){
-            refreshTokenStore.revoke(jti);
-            refreshTokenStore.registerRefreshToken(jti,userId,Duration.ofDays(velrixJwtProperties.refreshTokenDays()));
-            return issueTokenPair(user);
-        }
-    }
-
-    /** 公共校验 + 签发 token */
     private void authenticate(SysUser user, String rawPassword) {
         if (user == null || !Boolean.TRUE.equals(user.getEnabled())
                 || !passwordEncoder.matches(rawPassword, user.getPasswordHash())) {
@@ -109,4 +116,21 @@ public class AuthService {
         return new LoginTokens(access, refresh);
     }
 
+    private void revokeRefreshToken(String refreshToken) {
+        if (!StringUtils.hasText(refreshToken)) {
+            return;
+        }
+        try {
+            Claims c = jwtService.parse(refreshToken);
+            if (!JwtService.TYP_REFRESH.equals(c.get(JwtService.CLAIM_TYP, String.class))) {
+                return;
+            }
+            String jti = c.getId();
+            if (StringUtils.hasText(jti)) {
+                refreshTokenStore.revoke(jti);
+            }
+        } catch (JwtException ignored) {
+            // 登出时 refresh 已失效则忽略
+        }
+    }
 }

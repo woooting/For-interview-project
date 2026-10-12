@@ -26,11 +26,19 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(@RequestHeader(value = "Authorization", required = false) String authorization) {
+    public ApiResponse<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody LogoutRequest body) {
         if (authorization == null || !authorization.startsWith("Bearer ")) {
             throw new BizException(ApiCodes.UNAUTHORIZED, "未登录或登录已过期");
         }
-        authService.logout(authorization.substring(7));
+        authService.logout(authorization.substring(7), body.refreshToken());
         return ApiResponse.ok();
+    }
+
+    @PostMapping("/refresh")
+    public ApiResponse<LoginResponse> refresh(@RequestBody RefreshRequest request) {
+        LoginTokens tokens = authService.refresh(request.refreshToken());
+        return ApiResponse.ok(new LoginResponse(tokens.accessToken(), tokens.refreshToken()));
     }
 }

@@ -44,7 +44,7 @@ class PurchaseOrderControllerTest {
 	}
 
 	private ResultActions submit(String username) throws Exception {
-		String token = authService.login(username, "admin123");
+		String token = authService.login(username, "admin123").accessToken();
 		return mockMvc.perform(post("/api/purchase-orders/submit")
 				.header("Authorization", "Bearer " + token)
 				.contentType(MediaType.APPLICATION_JSON));

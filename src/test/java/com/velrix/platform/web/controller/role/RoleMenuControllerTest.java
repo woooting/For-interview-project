@@ -94,7 +94,7 @@ class RoleMenuControllerTest {
 	}
 
 	private ResultActions replace(Long roleId, String username, String menuIdsJson) throws Exception {
-		String token = authService.login(username, "admin123");
+		String token = authService.login(username, "admin123").accessToken();
 		return mockMvc.perform(put("/api/roles/" + roleId + "/menus")
 				.header("Authorization", "Bearer " + token)
 				.contentType(MediaType.APPLICATION_JSON)

@@ -5,6 +5,7 @@ package com.velrix.platform.application.role;
 import com.velrix.platform.infrastructure.persistence.audit.SysAuditLogMapper;
 import com.velrix.platform.infrastructure.persistence.menu.SysMenuMapper;
 import com.velrix.platform.infrastructure.persistence.role.SysRoleMapper;
+import com.velrix.platform.infrastructure.redis.UserAccessCacheStore;
 import com.velrix.shared.api.ApiCodes;
 import com.velrix.shared.exception.BizException;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class RoleMenuService {
     private final SysRoleMapper sysRoleMapper;
     private final SysMenuMapper sysMenuMapper;
     private final SysAuditLogMapper sysAuditLogMapper;
+    private final UserAccessCacheStore userAccessCacheStore;
 
     // 用 menuIds 全量替换该角色的菜单绑定，并返回相对变更前的增删 diff
     public RoleMenuDiffResponse replace(Long roleId, List<Long> menuIds, String actor, String ip) {
@@ -60,6 +62,9 @@ public class RoleMenuService {
         for (Long id : newIds) {
             sysMenuMapper.insertRoleMenu(roleId, id);
         }
+        List<Long> userIds = sysRoleMapper.selectUserIdsByRoleId(roleId);
+        userAccessCacheStore.evictAll(userIds);
+
         saveGrantAudit(role, added, removed, actor, ip);
         return new RoleMenuDiffResponse(added, removed);
     }

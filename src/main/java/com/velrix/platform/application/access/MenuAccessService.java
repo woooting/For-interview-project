@@ -6,9 +6,11 @@ import com.velrix.platform.domain.menu.SysMenu;
 import com.velrix.platform.domain.role.SysRole;
 import com.velrix.platform.infrastructure.persistence.menu.SysMenuMapper;
 import com.velrix.platform.infrastructure.persistence.role.SysRoleMapper;
+import com.velrix.platform.infrastructure.redis.UserAccessCacheStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import javax.swing.text.html.Option;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -19,6 +21,7 @@ public class MenuAccessService {
 
     private final SysMenuMapper sysMenuMapper;
     private final SysRoleMapper sysRoleMapper;
+    private final UserAccessCacheStore userAccessCacheStore;
 
     public List<SysMenu> listGrantedMenus(Long userId) {
         // 1. 用户 → 角色 id；无角色则无菜单
@@ -77,6 +80,10 @@ public class MenuAccessService {
 
     public UserAccessResponse loadAccess(Long userId) {
 
+
+        Optional<UserAccessResponse> cached = userAccessCacheStore.getCacheMenu(userId);
+        if(cached.isPresent())return cached.get();
+
         List<SysMenu> visible = listVisibleMenus(userId);
         // 把button权限级别的PermCode 装起来  他们不用做树状结构化
         List<String> buttonList = visible.stream()
@@ -112,7 +119,9 @@ public class MenuAccessService {
                 parentItem.children().add(Item);
             }
         }
-        return new UserAccessResponse(menus,buttonList);
+        UserAccessResponse res = new UserAccessResponse(menus,buttonList);
+        userAccessCacheStore.putCacheMenu(userId,res);
+        return res;
     }
     public boolean hasPerm(Long userId, String code) {
         return loadAccess(userId).permCodes().contains(code);
