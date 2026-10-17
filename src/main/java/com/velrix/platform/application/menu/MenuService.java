@@ -2,6 +2,8 @@ package com.velrix.platform.application.menu;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.velrix.platform.application.access.UserAccessCacheInvalidator;
+import com.velrix.platform.application.access.event.MenuChangedEvent;
 import com.velrix.platform.application.menu.dto.MenuTreeResponse;
 import com.velrix.platform.application.menu.dto.SaveMenuRequest;
 import com.velrix.platform.domain.menu.SysMenu;
@@ -9,6 +11,7 @@ import com.velrix.platform.infrastructure.persistence.menu.SysMenuMapper;
 import com.velrix.shared.api.ApiCodes;
 import com.velrix.shared.exception.BizException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +22,8 @@ import java.util.*;
 @Transactional
 public class MenuService {
     private final SysMenuMapper sysMenuMapper;
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final UserAccessCacheInvalidator userAccessCacheInvalidator;
 
     public SysMenu create(SaveMenuRequest body) {
         // id 传 null：还没有这一行，prepare 按创建处理，不做编辑才有的检查
@@ -44,6 +49,7 @@ public class MenuService {
                 .set(SysMenu::getType, menu.getType())
                 .set(SysMenu::getSort, menu.getSort())
                 .set(SysMenu::getHidden, menu.getHidden()));
+        applicationEventPublisher.publishEvent(new MenuChangedEvent(id,Optional.empty()));
         // 再查一次，把数据库填上的更新时间带回返回值
         return sysMenuMapper.selectById(id);
     }
@@ -187,8 +193,12 @@ public class MenuService {
         if (children > 0) {
             throw new BizException(ApiCodes.BIZ_ERROR, "下面还有子菜单，不能删除");
         }
+        List<Long> userIds = userAccessCacheInvalidator.resolveUserIdsByMenuId(id);
+        // 这个删中间表的映射关系 role-menu
         sysMenuMapper.deleteByMenuId(id);
+        // 这个删掉的才是menu表
         sysMenuMapper.deleteById(id);
+        applicationEventPublisher.publishEvent(new MenuChangedEvent(id, Optional.of(userIds)));
     }
 
 }

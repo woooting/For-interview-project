@@ -5,6 +5,7 @@ import com.velrix.platform.domain.role.SysRole;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
+import java.util.Set;
 
 @Mapper
 public interface SysRoleMapper extends BaseMapper<SysRole> {
@@ -21,4 +22,17 @@ public interface SysRoleMapper extends BaseMapper<SysRole> {
 
     @Insert("INSERT INTO sys_user_role (user_id, role_id) VALUES (#{userId}, #{roleId})")
     int insertUserRole(@Param("userId") Long userId, @Param("roleId") Long roleId);
+
+    @Select("<script>SELECT DISTINCT user_id FROM sys_user_role WHERE role_id IN " +
+            "<foreach collection='roleIds' item='id' open='(' separator=',' close=')'>#{id}</foreach>" +
+            "</script>")
+    List<Long> selectUserIdsByRoleIds(@Param("roleIds") List<Long> roleIds);
+
+    @Select("""
+            SELECT DISTINCT ur.user_id
+            FROM sys_user_role ur
+            INNER JOIN sys_role r ON r.id = ur.role_id
+            WHERE r.is_administrator = 1
+            """)
+    List<Long> selectUserIdsWithAdministratorRole();
 }

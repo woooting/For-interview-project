@@ -5,9 +5,15 @@ import org.apache.ibatis.annotations.*;
 import com.velrix.platform.domain.menu.SysMenu;
 
 import java.util.List;
+import java.util.Set;
 
 @Mapper
 public interface SysMenuMapper extends BaseMapper<SysMenu> {
+
+
+
+    @Select("SELECT role_id FROM sys_role_menu WHERE menu_id = #{menuId}")
+    List<Long> selectRoleIdsByMenuid(@Param("menuId") Long menuId);
 
     @Select("SELECT menu_id FROM sys_role_menu WHERE role_id = #{roleId}")
     List<Long> selectMenuIdsByRoleId(@Param("roleId") Long roleId);

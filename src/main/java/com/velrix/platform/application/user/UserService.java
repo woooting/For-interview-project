@@ -1,16 +1,17 @@
 package com.velrix.platform.application.user;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.velrix.platform.application.access.event.UserAccessEvictEvent;
 import com.velrix.platform.application.user.dto.UserDetailResponse;
 import com.velrix.platform.domain.org.SysOrg;
 import com.velrix.platform.domain.user.SysUser;
 import com.velrix.platform.infrastructure.persistence.org.SysOrgMapper;
 import com.velrix.platform.infrastructure.persistence.role.SysRoleMapper;
-import com.velrix.platform.infrastructure.redis.UserAccessCacheStore;
 import com.velrix.shared.api.ApiCodes;
 import com.velrix.shared.exception.BizException;
 import com.velrix.platform.infrastructure.persistence.user.SysUserMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +27,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final SysRoleMapper sysRoleMapper;
     private final SysOrgMapper sysOrgMapper;
-    private final UserAccessCacheStore userAccessCacheStore;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     public SysUser create(String username, String displayName, String rawPassword, Boolean enabled,Long orgId) {
         if (username == null || username.isBlank()) {
@@ -102,11 +103,10 @@ public class UserService {
             }
         }
             sysRoleMapper.deleteByUserId(userId);
-            userAccessCacheStore.evict(userId);
         for (Long roleId : newIds) {
             sysRoleMapper.insertUserRole(userId, roleId);
         }
-
+        applicationEventPublisher.publishEvent(new UserAccessEvictEvent(userId));
         return new ArrayList<>(newIds);
     }
 
