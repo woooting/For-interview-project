@@ -16,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -73,10 +75,22 @@ public class WarehouseService {
     public List<WarehouseListItem> list() {
         List<MdWarehouse> rows = mdWarehouseMapper.selectList(
                 new LambdaQueryWrapper<MdWarehouse>().orderByDesc(MdWarehouse::getId));
-        List<WarehouseListItem> result = new ArrayList<>();
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> warehouseIds = rows.stream().map(MdWarehouse::getId).toList();
+        List<MdLocation> allLocations = mdLocationMapper.selectList(
+                new LambdaQueryWrapper<MdLocation>().in(MdLocation::getWarehouseId, warehouseIds));
+
+        Map<Long, List<MdLocation>> locationsByWarehouse = new HashMap<>();
+        for (MdLocation loc : allLocations) {
+            locationsByWarehouse.computeIfAbsent(loc.getWarehouseId(), k -> new ArrayList<>()).add(loc);
+        }
+
+        List<WarehouseListItem> result = new ArrayList<>(rows.size());
         for (MdWarehouse row : rows) {
-            List<MdLocation> locations = mdLocationMapper.selectList(
-                    new LambdaQueryWrapper<MdLocation>().eq(MdLocation::getWarehouseId, row.getId()));
+            List<MdLocation> locations = locationsByWarehouse.getOrDefault(row.getId(), List.of());
             boolean inboundReady = readinessPolicy.isInboundReady(row, locations);
             boolean frozen = readinessPolicy.isWarehouseFrozen(row);
             result.add(new WarehouseListItem(row, inboundReady, frozen));
