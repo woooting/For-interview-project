@@ -10,6 +10,7 @@ import com.velrix.masterdata.web.support.WebActor;
 import com.velrix.shared.api.ApiResponse;
 import com.velrix.shared.web.RequirePerm;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,7 +33,7 @@ public class LocationController {
     @RequirePerm("location:manage")
     public ApiResponse<MdLocation> update(
             @PathVariable Long id,
-            @RequestBody SaveLocationRequest body,
+            @Valid @RequestBody SaveLocationRequest body,
             HttpServletRequest request) {
         return ApiResponse.ok(locationService.update(
                 id, body.code(), body.name(), body.description(),
@@ -43,7 +44,7 @@ public class LocationController {
     @RequirePerm("location:manage")
     public ApiResponse<MdLocation> patchStatus(
             @PathVariable Long id,
-            @RequestBody PatchStatusRequest body,
+            @Valid @RequestBody PatchStatusRequest body,
             HttpServletRequest request) {
         return ApiResponse.ok(locationService.patchStatus(
                 id, body.status(), WebActor.username(), WebActor.clientIp(request)));
@@ -60,7 +61,7 @@ public class LocationController {
     @RequirePerm("location:manage")
     public ApiResponse<List<MdLocationCapacity>> replaceCapacities(
             @PathVariable Long id,
-            @RequestBody ReplaceCapacitiesRequest body,
+            @Valid @RequestBody ReplaceCapacitiesRequest body,
             HttpServletRequest request) {
         List<LocationService.CapacityLineCommand> lines = body.items() == null
                 ? List.of()

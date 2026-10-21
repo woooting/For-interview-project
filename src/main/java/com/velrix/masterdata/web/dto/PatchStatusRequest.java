@@ -1,4 +1,7 @@
 package com.velrix.masterdata.web.dto;
 
-public record PatchStatusRequest(String status) {
+import jakarta.validation.constraints.NotBlank;
+
+public record PatchStatusRequest(
+        @NotBlank(message = "状态不能为空") String status) {
 }

@@ -1,7 +1,7 @@
 package com.velrix.masterdata.application.warehouse;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.velrix.masterdata.application.product.ProductService;
+import com.velrix.masterdata.application.product.ProductGuard;
 import com.velrix.masterdata.application.support.BatchValidation;
 import com.velrix.masterdata.application.support.MasterdataAuditWriter;
 import com.velrix.masterdata.domain.CodeNormalizer;
@@ -33,7 +33,7 @@ public class LocationService {
     private final MdLocationCapacityMapper mdLocationCapacityMapper;
     private final WarehouseService warehouseService;
     private final WarehouseReadinessPolicy readinessPolicy;
-    private final ProductService productService;
+    private final ProductGuard productGuard;
     private final LocationStorageSummaryAssembler summaryAssembler;
     private final MasterdataAuditWriter auditWriter;
 
@@ -42,24 +42,13 @@ public class LocationService {
         warehouseService.rejectIfFrozen(warehouse, "仓库已停用，不能新增库位");
 
         BatchValidation validation = new BatchValidation();
-        if (commands == null || commands.isEmpty()) {
-            validation.add("至少添加一个库位");
-            validation.throwIfAny();
-        }
+        // 空列表/字段级校验在 DTO 层（@NotEmpty + @NotBlank + @Valid）；这里只管批内重复、查重与组装
 
         Set<String> normsInBatch = new HashSet<>();
         List<MdLocation> prepared = new ArrayList<>();
         for (int i = 0; i < commands.size(); i++) {
             CreateLocationCommand cmd = commands.get(i);
             String prefix = "第 " + (i + 1) + " 个库位：";
-            if (cmd.code() == null || cmd.code().isBlank()) {
-                validation.add(prefix + "编码不能为空");
-                continue;
-            }
-            if (cmd.name() == null || cmd.name().isBlank()) {
-                validation.add(prefix + "名称不能为空");
-                continue;
-            }
             String norm = CodeNormalizer.normalizeCode(cmd.code());
             if (norm.isEmpty()) {
                 validation.add(prefix + "编码不能为空");
@@ -103,9 +92,7 @@ public class LocationService {
         MdWarehouse warehouse = warehouseService.requireWarehouse(location.getWarehouseId());
         warehouseService.rejectIfFrozen(warehouse, "仓库已停用，不能编辑库位");
 
-        if (code == null || code.isBlank() || name == null || name.isBlank()) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "库位编码和名称不能为空");
-        }
+        // 非空校验在 DTO 层（@NotBlank + @Valid）
         String norm = CodeNormalizer.normalizeCode(code);
         MdLocation dup = mdLocationMapper.selectOne(new LambdaQueryWrapper<MdLocation>()
                 .eq(MdLocation::getWarehouseId, location.getWarehouseId())
@@ -176,28 +163,18 @@ public class LocationService {
         }
 
         BatchValidation validation = new BatchValidation();
-        if (lines == null) {
-            lines = List.of();
-        }
+        // productId/maxQty 的空值与范围校验在 DTO 层（@NotNull + @DecimalMin）；这里只管批内重复与商品状态
         Set<Long> productIdsInBatch = new HashSet<>();
         List<MdLocationCapacity> prepared = new ArrayList<>();
         for (int i = 0; i < lines.size(); i++) {
             CapacityLineCommand line = lines.get(i);
             String prefix = "第 " + (i + 1) + " 条容量：";
-            if (line.productId() == null) {
-                validation.add(prefix + "商品不能为空");
-                continue;
-            }
             if (!productIdsInBatch.add(line.productId())) {
                 validation.add(prefix + "商品重复");
                 continue;
             }
-            if (line.maxQty() == null || line.maxQty().compareTo(BigDecimal.ZERO) <= 0) {
-                validation.add(prefix + "maxQty 必须大于 0");
-                continue;
-            }
             try {
-                productService.requireActive(line.productId());
+                productGuard.requireActive(line.productId());
             } catch (BizException e) {
                 validation.add(prefix + e.getMessage());
                 continue;

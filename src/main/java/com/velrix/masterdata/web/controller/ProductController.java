@@ -1,13 +1,16 @@
 package com.velrix.masterdata.web.controller;
 
+import com.velrix.masterdata.application.impact.ImpactSummary;
 import com.velrix.masterdata.application.product.ProductService;
 import com.velrix.masterdata.domain.product.MdProduct;
+import com.velrix.masterdata.web.dto.PatchStatusRequest;
 import com.velrix.masterdata.web.dto.SaveProductRequest;
 import com.velrix.masterdata.web.support.WebActor;
 import com.velrix.shared.api.ApiResponse;
 import com.velrix.shared.web.RequirePerm;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,7 +38,7 @@ public class ProductController {
 
     @PostMapping
     @RequirePerm("product:create")
-    public ApiResponse<MdProduct> create(@RequestBody SaveProductRequest body, HttpServletRequest request) {
+    public ApiResponse<MdProduct> create(@Valid @RequestBody SaveProductRequest body, HttpServletRequest request) {
         return ApiResponse.ok(productService.create(
                 body.code(), body.name(), body.unit(), body.batchManaged(), body.serialManaged(),
                 WebActor.username(), WebActor.clientIp(request)));
@@ -45,10 +48,32 @@ public class ProductController {
     @RequirePerm("product:update")
     public ApiResponse<MdProduct> update(
             @PathVariable Long id,
-            @RequestBody SaveProductRequest body,
+            @Valid @RequestBody SaveProductRequest body,
             HttpServletRequest request) {
         return ApiResponse.ok(productService.update(
                 id, body.code(), body.name(), body.unit(), body.batchManaged(), body.serialManaged(),
                 WebActor.username(), WebActor.clientIp(request)));
+    }
+
+    @PatchMapping("/{id}/status")
+    @RequirePerm("product:status")
+    public ApiResponse<MdProduct> patchStatus(
+            @PathVariable Long id,
+            @Valid @RequestBody PatchStatusRequest body,
+            HttpServletRequest request) {
+        return ApiResponse.ok(productService.patchStatus(
+                id, body.status(), WebActor.username(), WebActor.clientIp(request)));
+    }
+
+    @GetMapping("/{id}/impact")
+    @RequirePerm("product:list")
+    public ApiResponse<ImpactSummary> impact(@PathVariable Long id) {
+        return ApiResponse.ok(productService.impact(id));
+    }
+
+    @DeleteMapping("/{id}")
+    @RequirePerm("product:delete")
+    public void delete(@PathVariable Long id) {
+        productService.delete(id);
     }
 }

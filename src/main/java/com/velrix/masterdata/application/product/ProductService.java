@@ -1,6 +1,9 @@
 package com.velrix.masterdata.application.product;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.velrix.masterdata.application.impact.ImpactSummary;
+import com.velrix.masterdata.application.impact.MasterDataImpactService;
+import com.velrix.masterdata.application.impact.MasterDataKind;
 import com.velrix.masterdata.application.support.MasterdataAuditWriter;
 import com.velrix.masterdata.domain.CodeNormalizer;
 import com.velrix.masterdata.domain.MasterDataStatus;
@@ -8,6 +11,7 @@ import com.velrix.masterdata.domain.product.MdProduct;
 import com.velrix.masterdata.infrastructure.persistence.product.MdProductMapper;
 import com.velrix.shared.api.ApiCodes;
 import com.velrix.shared.exception.BizException;
+import com.velrix.shared.exception.ConflictException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -22,6 +26,7 @@ public class ProductService {
 
     private final MdProductMapper mdProductMapper;
     private final MasterdataAuditWriter auditWriter;
+    private final MasterDataImpactService impactService;
 
     public MdProduct create(String code, String name, String unit, Boolean batchManaged, Boolean serialManaged,
                             String actor, String ip) {
@@ -53,11 +58,7 @@ public class ProductService {
     }
 
     public MdProduct get(Long id) {
-        MdProduct product = mdProductMapper.selectById(id);
-        if (product == null) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "商品不存在");
-        }
-        return product;
+        return requireProduct(id);
     }
 
     public List<MdProduct> list(String keyword, String status) {
@@ -73,28 +74,50 @@ public class ProductService {
         return mdProductMapper.selectList(q);
     }
 
-    public MdProduct requireActive(long productId) {
-        MdProduct product = mdProductMapper.selectById(productId);
-        if (product == null) {
+    public MdProduct patchStatus(Long id, String status, String actor, String ip) {
+        if (!MasterDataStatus.ACTIVE.equals(status) && !MasterDataStatus.INACTIVE.equals(status)) {
+            throw new BizException(ApiCodes.BIZ_ERROR, "状态只能是 ACTIVE 或 INACTIVE");
+        }
+        MdProduct product = requireProduct(id);
+        product.setStatus(status);
+        mdProductMapper.updateById(product);
+        auditWriter.write(actor, "MD_PRODUCT_STATUS", "MD_PRODUCT", id,
+                "商品 " + product.getCodeNorm() + " 状态 → " + status, ip);
+        return product;
+    }
+
+    public ImpactSummary impact(Long id) {
+        requireProduct(id);
+        return impactService.summarize(MasterDataKind.PRODUCT, id);
+    }
+
+    /**
+     * 主数据仅停用不物理删（D2 定稿）：DELETE 一律 409。
+     * 有引用时 message 带分类型数量，无引用时提示改用停用。
+     */
+    public void delete(Long id) {
+        requireProduct(id);
+        ImpactSummary summary = impactService.summarize(MasterDataKind.PRODUCT, id);
+        if (!summary.deletable()) {
+            throw new ConflictException(ApiCodes.BIZ_CONFLICT, summary.message() + "，不能删除");
+        }
+        throw new ConflictException(ApiCodes.BIZ_CONFLICT, "商品不支持物理删除，请使用停用");
+    }
+
+    private MdProduct requireProduct(Long id) {
+        if (id == null) {
             throw new BizException(ApiCodes.BIZ_ERROR, "商品不存在");
         }
-        if (!MasterDataStatus.isActive(product.getStatus())) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "商品已停用");
+        MdProduct product = mdProductMapper.selectById(id);
+        if (product == null) {
+            throw new BizException(ApiCodes.BIZ_ERROR, "商品不存在");
         }
         return product;
     }
 
     private MdProduct prepare(Long id, String code, String name, String unit,
                               Boolean batchManaged, Boolean serialManaged, String statusIfCreate) {
-        if (code == null || code.isBlank()) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "商品编码不能为空");
-        }
-        if (name == null || name.isBlank()) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "商品名称不能为空");
-        }
-        if (unit == null || unit.isBlank()) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "计量单位不能为空");
-        }
+        // 非空校验在 DTO 层（@NotBlank + @Valid）；这里只管规范化、查重与组装
         String trimmedCode = code.trim();
         String norm = CodeNormalizer.normalizeCode(trimmedCode);
         if (norm.isEmpty()) {

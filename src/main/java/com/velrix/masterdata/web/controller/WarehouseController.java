@@ -1,5 +1,6 @@
 package com.velrix.masterdata.web.controller;
 
+import com.velrix.masterdata.application.impact.ImpactSummary;
 import com.velrix.masterdata.application.warehouse.LocationService;
 import com.velrix.masterdata.application.warehouse.LocationStorageSummaryAssembler;
 import com.velrix.masterdata.application.warehouse.WarehouseReadinessPolicy;
@@ -10,6 +11,7 @@ import com.velrix.masterdata.web.support.WebActor;
 import com.velrix.shared.api.ApiResponse;
 import com.velrix.shared.web.RequirePerm;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +42,12 @@ public class WarehouseController {
         return ApiResponse.ok(warehouseService.get(id));
     }
 
+    @GetMapping("/{id}/impact")
+    @RequirePerm("warehouse:list")
+    public ApiResponse<ImpactSummary> impact(@PathVariable Long id) {
+        return ApiResponse.ok(warehouseService.impact(id));
+    }
+
     @GetMapping("/{id}/locations")
     @RequirePerm("warehouse:list")
     public ApiResponse<List<LocationSummaryResponse>> listLocations(@PathVariable Long id) {
@@ -50,7 +58,7 @@ public class WarehouseController {
 
     @PostMapping
     @RequirePerm("warehouse:create")
-    public ApiResponse<MdWarehouse> create(@RequestBody SaveWarehouseRequest body, HttpServletRequest request) {
+    public ApiResponse<MdWarehouse> create(@Valid @RequestBody SaveWarehouseRequest body, HttpServletRequest request) {
         return ApiResponse.ok(warehouseService.create(
                 body.code(), body.name(), body.address(),
                 WebActor.username(), WebActor.clientIp(request)));
@@ -60,7 +68,7 @@ public class WarehouseController {
     @RequirePerm("warehouse:update")
     public ApiResponse<MdWarehouse> update(
             @PathVariable Long id,
-            @RequestBody SaveWarehouseRequest body,
+            @Valid @RequestBody SaveWarehouseRequest body,
             HttpServletRequest request) {
         return ApiResponse.ok(warehouseService.update(
                 id, body.code(), body.name(), body.address(),
@@ -71,7 +79,7 @@ public class WarehouseController {
     @RequirePerm("warehouse:status")
     public ApiResponse<MdWarehouse> patchStatus(
             @PathVariable Long id,
-            @RequestBody PatchStatusRequest body,
+            @Valid @RequestBody PatchStatusRequest body,
             HttpServletRequest request) {
         return ApiResponse.ok(warehouseService.patchStatus(
                 id, body.status(), WebActor.username(), WebActor.clientIp(request)));
@@ -81,7 +89,7 @@ public class WarehouseController {
     @RequirePerm("location:manage")
     public ApiResponse<List<LocationSummaryResponse>> createLocations(
             @PathVariable Long id,
-            @RequestBody CreateLocationsRequest body,
+            @Valid @RequestBody CreateLocationsRequest body,
             HttpServletRequest request) {
         List<LocationService.CreateLocationCommand> commands = body.locations() == null
                 ? List.of()

@@ -1,6 +1,9 @@
 package com.velrix.masterdata.application.warehouse;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.velrix.masterdata.application.impact.ImpactSummary;
+import com.velrix.masterdata.application.impact.MasterDataImpactService;
+import com.velrix.masterdata.application.impact.MasterDataKind;
 import com.velrix.masterdata.application.support.MasterdataAuditWriter;
 import com.velrix.masterdata.domain.CodeNormalizer;
 import com.velrix.masterdata.domain.MasterDataStatus;
@@ -29,6 +32,7 @@ public class WarehouseService {
     private final MdLocationMapper mdLocationMapper;
     private final WarehouseReadinessPolicy readinessPolicy;
     private final MasterdataAuditWriter auditWriter;
+    private final MasterDataImpactService impactService;
 
     public MdWarehouse create(String code, String name, String address, String actor, String ip) {
         MdWarehouse warehouse = prepare(null, code, name, address, MasterDataStatus.ACTIVE);
@@ -98,6 +102,11 @@ public class WarehouseService {
         return result;
     }
 
+    public ImpactSummary impact(Long id) {
+        requireWarehouse(id);
+        return impactService.summarize(MasterDataKind.WAREHOUSE, id);
+    }
+
     public MdWarehouse requireWarehouse(Long id) {
         if (id == null) {
             throw new BizException(ApiCodes.BIZ_ERROR, "仓库不存在");
@@ -116,12 +125,7 @@ public class WarehouseService {
     }
 
     private MdWarehouse prepare(Long id, String code, String name, String address, String statusIfCreate) {
-        if (code == null || code.isBlank()) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "仓库编码不能为空");
-        }
-        if (name == null || name.isBlank()) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "仓库名称不能为空");
-        }
+        // 非空校验在 DTO 层（@NotBlank + @Valid）；这里只管规范化、查重与组装
         String trimmedCode = code.trim();
         String norm = CodeNormalizer.normalizeCode(trimmedCode);
         LambdaQueryWrapper<MdWarehouse> dup = new LambdaQueryWrapper<MdWarehouse>()
