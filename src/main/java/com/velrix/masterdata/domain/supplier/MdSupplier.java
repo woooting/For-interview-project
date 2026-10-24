@@ -1,4 +1,4 @@
-package com.velrix.masterdata.domain.custormer;
+package com.velrix.masterdata.domain.supplier;
 
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -7,8 +7,8 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("md_customer")
-public class MdCustomer {
+@TableName("md_supplier")
+public class MdSupplier {
 
     @TableId
     private Long id;

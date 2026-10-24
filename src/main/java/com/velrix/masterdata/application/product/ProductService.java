@@ -118,6 +118,11 @@ public class ProductService {
     private MdProduct prepare(Long id, String code, String name, String unit,
                               Boolean batchManaged, Boolean serialManaged, String statusIfCreate) {
         // 非空校验在 DTO 层（@NotBlank + @Valid）；这里只管规范化、查重与组装
+        // 步骤：
+        // 1) trim + 大写规范化编码
+        // 2) 按 code_norm 查重（更新时排除自身）
+        // 3) 新建或按 id 加载实体
+        // 4) 回填字段返回
         String trimmedCode = code.trim();
         String norm = CodeNormalizer.normalizeCode(trimmedCode);
         if (norm.isEmpty()) {
