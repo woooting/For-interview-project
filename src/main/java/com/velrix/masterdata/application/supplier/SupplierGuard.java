@@ -19,7 +19,7 @@ public class SupplierGuard {
             throw new BizException(ApiCodes.BIZ_ERROR, "供应商不存在");
         }
         if(!MasterDataStatus.isActive(supplier.getStatus())) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "供应商已冻结");
+            throw new BizException(ApiCodes.BIZ_ERROR, "供应商已停用");
         }
         return supplier;
     }

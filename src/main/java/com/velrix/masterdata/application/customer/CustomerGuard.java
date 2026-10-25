@@ -19,7 +19,7 @@ public class CustomerGuard {
             throw new BizException(ApiCodes.BIZ_ERROR, "客户不存在");
         }
         if(!MasterDataStatus.isActive(customer.getStatus())) {
-            throw new BizException(ApiCodes.BIZ_ERROR, "客户已冻结");
+            throw new BizException(ApiCodes.BIZ_ERROR, "客户已停用");
         }
         return customer;
     }

@@ -1,8 +1,8 @@
 # HandOff — AAA / Velrix（M0 + M1 主数据线）
 
 > **M0 v0.2** 仍有效（JWT、Redis 权限缓存 R0-6）。  
-> **M1**：T0 + 仓库/库位/容量 T2（V17–V20）+ **T3 商品启停/删除 + 引用影响 SPI**（V21）已完成。  
-> 更新：**2026-10-24**。规格：`docs/M1-主数据需求.md`；链路教学导览：`docs/M1-链路导览.md`。
+> **M1**：T0 + 仓库/库位/容量 T2（V17–V20）+ T3 商品启停/删除 + 引用影响 SPI（V21）+ **T4 客户/供应商 CRUD + impact**（V22/V23）已完成。  
+> 更新：**2026-10-25**。规格：`docs/M1-主数据需求.md`；链路教学导览：`docs/M1-链路导览.md`。
 
 ---
 
@@ -40,19 +40,36 @@
 | DTO 校验（后补） | 全部写 DTO 加 Bean Validation（`@NotBlank`/`@NotEmpty`/`@NotNull`+`@DecimalMin`，嵌套 `@Valid`），Controller `@Valid` 触发 → 400 `PARAM_INVALID` 字段级消息（`ApiCodes.PARAM_INVALID` + `MethodArgumentNotValidException`/`HttpMessageNotReadableException` handler）。**service 层与 DTO 重复的空值检查已砍**（Product/Warehouse prepare、Location update/createBatch/replaceCapacities，各留注释）；保留：规范化后空值、批内重复、DB 查重、requireActive、存在性。service 契约变为"调用方保证非空"。注：`spring-boot-starter-validation` 依赖 pom 里早就有，此前未用 |
 | Guard | `ProductGuard.requireActive`（从 ProductService 抽出，LocationService 已改引用）；`LocationGuard.requireBelongsToWarehouse` |
 | 种子 | V21：2214 `product:status`、2215 `product:delete`（接 V20 的 2210 商品管理段） |
-| 单测 | **20 个纯 Mockito 测试全绿**（不起 Spring、不需库）：`MasterDataImpactServiceTest`(4)、`ProductServiceTest`(6)、`ProductGuardTest`(3)、`LocationGuardTest`(3)、`WarehouseGuardTest`(4)，覆盖 AC-M1-03/04/07/08 |
-| 跑法 | `.\mvnw.cmd test -Dtest="ProductServiceTest,ProductGuardTest,LocationGuardTest,WarehouseGuardTest,MasterDataImpactServiceTest"` |
+| 单测 | **39 个纯 Mockito 测试全绿**（不起 Spring、不需库）：T3 20 个 + T4 19 个（`CustomerServiceTest`(8)、`SupplierServiceTest`(5)、`CustomerGuardTest`(3)、`SupplierGuardTest`(3)） |
+| 跑法 | `.\mvnw.cmd test -Dtest="ProductServiceTest,ProductGuardTest,LocationGuardTest,WarehouseGuardTest,MasterDataImpactServiceTest,CustomerServiceTest,SupplierServiceTest,CustomerGuardTest,SupplierGuardTest"` |
 
 **设计定稿（历史）**：编码 `trim+大写`→`code_norm`；库位 description；容量联合主键；批量/容量整单失败+多错误拼接；v0.1 无仓库类型。
 
 ---
 
-## M1 未做（建议 T4→T6）
+### T4（客户/供应商 CRUD + impact，V22/V23，本会话完成）
 
-- **T4**：客户/供应商 CRUD + impact（复用 T3 SPI：加 CUSTOMER/SUPPLIER Contributor + 各自 Guard）
+| 项 | 说明 |
+|----|------|
+| DDL | V22 `md_customer` / `md_supplier`：主数据骨架（id/code/code_norm UK/name/status/审计列）+ `contact_name`/`contact_phone`/`address`（NULL 可选，DTO 不加 @NotBlank，service 空白归 null） |
+| API | `GET/POST/PUT /api/customers`、`PATCH …/status`、`GET …/impact`、`DELETE …/{id}`（409）；`/api/suppliers` 同构 |
+| 权限 | V23：2220 客户段 / 2230 供应商段（十位区分模块），`customer:*`/`supplier:*` 五权限（status 与 update 分离：敏感度不同） |
+| Guard | `CustomerGuard`/`SupplierGuard.requireActive`（对标 ProductGuard，M1-F-23 接口先交付，M3 下单门禁调用） |
+| impact | `CustomerImpactContributor`/`SupplierImpactContributor` 空实现（M1 无本地引用，M3 订单注册即生效）；Service 走 `MasterDataImpactService.summarize` 聚合 |
+| 删除 | D2 定稿照搬：有引用 409 带明细；无引用也 409「请使用停用」（防孤儿数据/可回滚/可溯源） |
+| 分层 | 用户手写实体/DTO/Service/Controller（导师模式引导），代理写 SQL/测试 |
+| 单测 | 19 个纯 Mockito 测试全绿：`CustomerServiceTest`(8)、`SupplierServiceTest`(5)、`CustomerGuardTest`(3)、`SupplierGuardTest`(3)；mock insert 需手动回填雪花 id（`write(..., long, ...)` 拆箱） |
+| 冒烟 | 13 发全过：codeNorm 大写、大小写查重、双层校验（DTO 拦空/空格，service 拦规范化后空值）、启停、impact 空 items、DELETE 409、菜单/权限入 me |
+
+**T4 设计讨论定稿（导师会话推导）**：客户/供应商=被单据引用的主数据档案（联系=未来订单，不建中间表）；价格不入档案（成交快照归流水）。
+
+---
+
+## M1 未做（建议 T5→T6）
+
 - **T5**：集成测试（需 MySQL + Redis）
 - **T6**：前端
-- M2 真实 `LocationOccupancyQuery` 实现（现为 Stub）
+- M2 真实 `LocationOccupancyQuery` 实现（现为 Stub）；M3 订单线（将消费 CustomerGuard/SupplierGuard + 注册 impact Contributor）
 - 未提交 git（用户未要求 commit）；`feature/jwt-device-claim` 未合回 master
 
 ---
@@ -75,6 +92,6 @@
 
 | Skill | 何时用 |
 |-------|--------|
-| `tdd` | T4 客户/供应商线单测 |
-| `learning-mentor` / `rubber-duck` | M2 占用查询设计、新模块设计 |
+| `tdd` | T5 集成测试、M3 订单线 |
+| `learning-mentor` / `rubber-duck` | M2 占用查询设计、M3 订单模块设计（T4 即此模式完成） |
 | `handoff` | 下一阶段再覆盖本文 |
