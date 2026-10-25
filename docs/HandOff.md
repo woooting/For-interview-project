@@ -1,7 +1,7 @@
 # HandOff — AAA / Velrix（M0 + M1 主数据线）
 
 > **M0 v0.2** 仍有效（JWT、Redis 权限缓存 R0-6）。  
-> **M1**：T0 + 仓库/库位/容量 T2（V17–V20）+ T3 商品启停/删除 + 引用影响 SPI（V21）+ **T4 客户/供应商 CRUD + impact**（V22/V23）已完成。  
+> **M1**：T0 + 仓库/库位/容量 T2（V17–V20）+ T3 商品启停/删除 + 引用影响 SPI（V21）+ T4 客户/供应商 CRUD + impact（V22/V23）+ **T5 集成测试（10 AC 全绿）** 已完成。  
 > 更新：**2026-10-25**。规格：`docs/M1-主数据需求.md`；链路教学导览：`docs/M1-链路导览.md`。
 
 ---
@@ -40,7 +40,7 @@
 | DTO 校验（后补） | 全部写 DTO 加 Bean Validation（`@NotBlank`/`@NotEmpty`/`@NotNull`+`@DecimalMin`，嵌套 `@Valid`），Controller `@Valid` 触发 → 400 `PARAM_INVALID` 字段级消息（`ApiCodes.PARAM_INVALID` + `MethodArgumentNotValidException`/`HttpMessageNotReadableException` handler）。**service 层与 DTO 重复的空值检查已砍**（Product/Warehouse prepare、Location update/createBatch/replaceCapacities，各留注释）；保留：规范化后空值、批内重复、DB 查重、requireActive、存在性。service 契约变为"调用方保证非空"。注：`spring-boot-starter-validation` 依赖 pom 里早就有，此前未用 |
 | Guard | `ProductGuard.requireActive`（从 ProductService 抽出，LocationService 已改引用）；`LocationGuard.requireBelongsToWarehouse` |
 | 种子 | V21：2214 `product:status`、2215 `product:delete`（接 V20 的 2210 商品管理段） |
-| 单测 | **39 个纯 Mockito 测试全绿**（不起 Spring、不需库）：T3 20 个 + T4 19 个（`CustomerServiceTest`(8)、`SupplierServiceTest`(5)、`CustomerGuardTest`(3)、`SupplierGuardTest`(3)） |
+| 单测 | **39 个纯 Mockito 测试全绿**（不起 Spring、不需库）：T3 20 个 + T4 19 个（`CustomerServiceTest`(8)、`SupplierServiceTest`(5)、`CustomerGuardTest`(3)、`SupplierGuardTest`(3)）；另有 T5 集成测试 10 个（`M1AcceptanceIT`，见下） |
 | 跑法 | `.\mvnw.cmd test -Dtest="ProductServiceTest,ProductGuardTest,LocationGuardTest,WarehouseGuardTest,MasterDataImpactServiceTest,CustomerServiceTest,SupplierServiceTest,CustomerGuardTest,SupplierGuardTest"` |
 
 **设计定稿（历史）**：编码 `trim+大写`→`code_norm`；库位 description；容量联合主键；批量/容量整单失败+多错误拼接；v0.1 无仓库类型。
@@ -65,10 +65,29 @@
 
 ---
 
-## M1 未做（建议 T5→T6）
+### T5（集成测试，本会话完成）
 
-- **T5**：集成测试（需 MySQL + Redis）
-- **T6**：前端
+| 项 | 说明 |
+|----|------|
+| 方案 | 弃 Testcontainers（本机 Docker Desktop 未开），改**独立库 `aaa_it`**：`@DynamicPropertySource` 覆盖 datasource.url，`createDatabaseIfNotExist` 自动建库，Flyway 全量 V1~V23，与 dev 库隔离；Redis 共用本机 |
+| 测试 | `src/test/java/com/velrix/it/M1AcceptanceIT.java`：AC-M1-01~10 全覆盖，真实 HTTP（RANDOM_PORT）+ 真实 JWT/RBAC；随机编码后缀可重复跑；AC-03 用真实库位容量引用触发非零 impact（不用 stub Contributor）；AC-09 lisi 无 `customer:list` → 403；AC-04/08 直接注入 Guard 断言 |
+| 跑法 | `.\mvnw.cmd test -Dtest=M1AcceptanceIT`（需本机 MySQL + Redis；命名 `*IT` 不进默认 surefire，不破坏离线全量测试） |
+
+**Boot 4 / Spring 7 测试迁移坑（下一会话别再踩）**：
+
+| 坑 | 修法 |
+|----|------|
+| `TestRestTemplate` 挪包且自动装配需 `spring-boot-restclient`（本地仓库无） | 裸 `new RestTemplate()` + `@Value("${local.server.port}")` 拼绝对 URL |
+| 默认 `HttpURLConnection` 底层不支持 PATCH | `new JdkClientHttpRequestFactory(HttpClient.newHttpClient())` |
+| 4xx/5xx 默认抛异常 | `rt.setErrorHandler(new NoOpResponseErrorHandler())`（Spring 7 现成类） |
+| 容器无 `ObjectMapper` bean | 测试内自建 `new ObjectMapper()` |
+
+---
+
+## M1 未做（建议 T6）
+
+- **T6**：前端（可选，最小 React 页：启停 + impact 弹窗）
+- P1 小尾巴：列表分页（F-08，四实体 list 均为全量）、库位 impact 接口（§7 可选）
 - M2 真实 `LocationOccupancyQuery` 实现（现为 Stub）；M3 订单线（将消费 CustomerGuard/SupplierGuard + 注册 impact Contributor）
 - 未提交 git（用户未要求 commit）；`feature/jwt-device-claim` 未合回 master
 
